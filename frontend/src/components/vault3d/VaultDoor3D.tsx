@@ -26,10 +26,10 @@ export default function VaultDoor3D({
     dialAngle: 0,
     targetDialAngle: 0,
     boltsProgress: 0, // 0 = locked, 1 = retracted
-    doorOpenAngle: 0, // 0 = closed, ~ -1.55 = open
+    doorOpenAngle: 0, // 0 = closed, ~ -1.50 = fully open
     shakeIntensity: 0,
     destructionProgress: 0,
-    shockwaveRadius: 0,
+    unlockProgress: 0,
     mouseX: 0,
     mouseY: 0,
   });
@@ -39,20 +39,20 @@ export default function VaultDoor3D({
     stateRef.current.status = status;
     stateRef.current.failedAttempts = failedAttempts;
     if (status === 'rejecting') {
-      stateRef.current.shakeIntensity = 1.4;
+      stateRef.current.shakeIntensity = 1.0;
     }
     if (status === 'destroyed') {
-      stateRef.current.shakeIntensity = 6.0;
+      stateRef.current.shakeIntensity = 2.5;
     }
   }, [status, failedAttempts]);
 
-  // When typing, trigger dial spin
+  // When typing, trigger dial spin smoothly
   const prevCountRef = useRef(typingCharCount);
   useEffect(() => {
     if (typingCharCount !== prevCountRef.current) {
       const diff = typingCharCount - prevCountRef.current;
       prevCountRef.current = typingCharCount;
-      stateRef.current.targetDialAngle += diff * (Math.PI / 4 + Math.random() * 0.2);
+      stateRef.current.targetDialAngle += diff * (Math.PI / 5 + Math.random() * 0.15);
     }
   }, [typingCharCount]);
 
@@ -65,132 +65,124 @@ export default function VaultDoor3D({
     const height = container.clientHeight || 600;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x06090e, 0.065);
+    scene.fog = new THREE.FogExp2(0x06090e, 0.05);
 
-    const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100);
-    camera.position.set(0, 0, 7.2);
-    const defaultFov = 38;
+    const camera = new THREE.PerspectiveCamera(36, width / height, 0.1, 100);
+    camera.position.set(0, 0, 7.0);
 
+    // Highly optimized WebGL renderer for buttery 60+ FPS
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: true,
       powerPreference: 'high-performance',
     });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.25;
+    renderer.toneMappingExposure = 1.2;
     container.appendChild(renderer.domElement);
 
-    // --- Materials (Ultra High-Spec Machined Titanium & Steel) ---
+    // --- Realistic Industrial Metal Materials ---
     const steelDark = new THREE.MeshStandardMaterial({
-      color: 0x161a22,
-      metalness: 0.92,
-      roughness: 0.22,
-    });
-
-    const steelPolished = new THREE.MeshStandardMaterial({
-      color: 0x2e3848,
-      metalness: 0.95,
-      roughness: 0.14,
-    });
-
-    const brassAccent = new THREE.MeshStandardMaterial({
-      color: 0xc49b45,
+      color: 0x181c24,
       metalness: 0.88,
       roughness: 0.28,
     });
 
+    const steelPolished = new THREE.MeshStandardMaterial({
+      color: 0x333d4e,
+      metalness: 0.94,
+      roughness: 0.18,
+    });
+
+    const brassAccent = new THREE.MeshStandardMaterial({
+      color: 0xbfa148,
+      metalness: 0.85,
+      roughness: 0.32,
+    });
+
     const chromeMaterial = new THREE.MeshStandardMaterial({
-      color: 0xe6edf5,
-      metalness: 0.98,
-      roughness: 0.08,
+      color: 0xe2e8f0,
+      metalness: 0.96,
+      roughness: 0.12,
     });
 
     const innerWallMaterial = new THREE.MeshStandardMaterial({
-      color: 0x070b12,
-      metalness: 0.6,
-      roughness: 0.6,
+      color: 0x090d14,
+      metalness: 0.5,
+      roughness: 0.7,
     });
 
-    // --- Atmospheric Floating Dust Motes in 3D Space ---
-    const dustCount = 80;
+    // --- Atmospheric Floating Dust Motes (GPU-only rotation, zero CPU lag) ---
+    const dustCount = 50;
     const dustGeo = new THREE.BufferGeometry();
     const dustPos = new Float32Array(dustCount * 3);
     for (let i = 0; i < dustCount; i++) {
-      dustPos[i * 3] = (Math.random() - 0.5) * 8;
-      dustPos[i * 3 + 1] = (Math.random() - 0.5) * 6;
-      dustPos[i * 3 + 2] = (Math.random() - 0.5) * 5 + 1;
+      dustPos[i * 3] = (Math.random() - 0.5) * 7;
+      dustPos[i * 3 + 1] = (Math.random() - 0.5) * 5;
+      dustPos[i * 3 + 2] = (Math.random() - 0.5) * 4 + 1;
     }
     dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
     const dustMat = new THREE.PointsMaterial({
-      size: 0.04,
+      size: 0.035,
       color: 0x00d2ef,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.35,
       blending: THREE.AdditiveBlending,
     });
     const dustPoints = new THREE.Points(dustGeo, dustMat);
     scene.add(dustPoints);
 
-    // --- Lights ---
-    const ambientLight = new THREE.AmbientLight(0x1e2736, 1.4);
+    // --- Lighting Setup (Optimized: 1 Key, 1 Fill/Rim, Dynamic LEDs) ---
+    const ambientLight = new THREE.AmbientLight(0x1e2736, 1.6);
     scene.add(ambientLight);
 
-    const keyLight = new THREE.DirectionalLight(0xe8f0ff, 2.8);
-    keyLight.position.set(4, 5, 6);
-    keyLight.castShadow = true;
+    const keyLight = new THREE.DirectionalLight(0xf0f5ff, 2.6);
+    keyLight.position.set(4, 5, 5);
     scene.add(keyLight);
 
-    const rimLight = new THREE.DirectionalLight(0x00d2ef, 1.8);
-    rimLight.position.set(-6, -3, 3);
+    const rimLight = new THREE.DirectionalLight(0x00d2ef, 1.2);
+    rimLight.position.set(-5, -3, 3);
     scene.add(rimLight);
 
-    // Dual Status LED Lights (Top & Bottom)
+    // Dual Status LEDs (Top & Bottom)
     const ledMat = new THREE.MeshBasicMaterial({ color: 0x00d2ef });
-    const ledLight = new THREE.PointLight(0x00d2ef, 1.5, 5);
+    const ledLight = new THREE.PointLight(0x00d2ef, 1.5, 4);
     ledLight.position.set(0, 1.4, 0.4);
 
     const bottomLedMat = new THREE.MeshBasicMaterial({ color: 0x00d2ef });
-    const bottomLedLight = new THREE.PointLight(0x00d2ef, 1.5, 5);
+    const bottomLedLight = new THREE.PointLight(0x00d2ef, 1.5, 4);
     bottomLedLight.position.set(0, -1.4, 0.4);
 
-    // Inner chamber glow (visible when door opens or during explosion)
-    const chamberLight = new THREE.PointLight(0x10b981, 0, 14);
-    chamberLight.position.set(0, 0, -0.8);
+    // Inner chamber light (Floods out with rich emerald green when door opens)
+    const chamberLight = new THREE.PointLight(0x10b981, 0, 10);
+    chamberLight.position.set(0, 0, -0.6);
     scene.add(chamberLight);
 
-    // Blast Flash Light (Blinding nuclear surge)
-    const blastFlashLight = new THREE.PointLight(0xffeedd, 0, 25);
-    blastFlashLight.position.set(0, 0, 1.8);
-    scene.add(blastFlashLight);
+    // Realistic Industrial Breach Fire/Glow Light
+    const breachHeatLight = new THREE.PointLight(0xff4500, 0, 12);
+    breachHeatLight.position.set(0, 0, 0.4);
+    scene.add(breachHeatLight);
 
-    // Secondary Fire/Amber Blast Light
-    const blastFireLight = new THREE.PointLight(0xff4400, 0, 20);
-    blastFireLight.position.set(0, 0, 0.6);
-    scene.add(blastFireLight);
-
-    // --- Outer Wall & Vault Frame ---
+    // --- Outer Heavy Wall Opening & Frame ---
     const frameGroup = new THREE.Group();
     scene.add(frameGroup);
 
-    // Heavy Circular Wall Opening
-    const frameTorusGeo = new THREE.TorusGeometry(2.35, 0.28, 24, 64);
+    // Heavy Torus Outer Rim
+    const frameTorusGeo = new THREE.TorusGeometry(2.35, 0.25, 16, 48);
     const frameTorus = new THREE.Mesh(frameTorusGeo, steelPolished);
     frameGroup.add(frameTorus);
 
-    // Inner bevel rim
-    const innerRimGeo = new THREE.TorusGeometry(2.15, 0.08, 16, 48);
+    // Inner Brass Retaining Rim
+    const innerRimGeo = new THREE.TorusGeometry(2.15, 0.07, 12, 36);
     const innerRim = new THREE.Mesh(innerRimGeo, brassAccent);
     frameGroup.add(innerRim);
 
-    // Bolt receiver notches in the outer frame
+    // 8 Bolt Receiver Notches in Frame
     const numBolts = 8;
     for (let i = 0; i < numBolts; i++) {
       const angle = (i * 2 * Math.PI) / numBolts;
-      const notchGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.35, 16);
+      const notchGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.32, 12);
       const notch = new THREE.Mesh(notchGeo, steelDark);
       notch.rotation.z = angle + Math.PI / 2;
       notch.position.x = Math.cos(angle) * 2.3;
@@ -198,293 +190,222 @@ export default function VaultDoor3D({
       frameGroup.add(notch);
     }
 
-    // Back Chamber (seen inside when opened)
-    const chamberBackGeo = new THREE.CylinderGeometry(2.1, 2.1, 1.4, 48, 1, true);
+    // Vault Interior Chamber Tube (Seen when door swings open)
+    const chamberBackGeo = new THREE.CylinderGeometry(2.1, 2.1, 1.5, 36, 1, true);
     const chamberBack = new THREE.Mesh(chamberBackGeo, innerWallMaterial);
     chamberBack.rotation.x = Math.PI / 2;
-    chamberBack.position.z = -0.7;
+    chamberBack.position.z = -0.75;
     frameGroup.add(chamberBack);
 
-    // Back wall plate inside vault
-    const backWallPlateGeo = new THREE.CircleGeometry(2.1, 48);
+    const backWallPlateGeo = new THREE.CircleGeometry(2.1, 36);
     const backWallPlate = new THREE.Mesh(backWallPlateGeo, steelDark);
-    backWallPlate.position.z = -1.4;
+    backWallPlate.position.z = -1.5;
     frameGroup.add(backWallPlate);
 
-    // --- Hinge & Vault Door Assembly ---
-    const HINGE_X = -2.25;
+    // Glowing Security Core Grid on back wall
+    const coreGridGeo = new THREE.RingGeometry(0.3, 1.4, 24);
+    const coreGridMat = new THREE.MeshBasicMaterial({
+      color: 0x10b981,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+    });
+    const coreGrid = new THREE.Mesh(coreGridGeo, coreGridMat);
+    coreGrid.position.z = -1.48;
+    frameGroup.add(coreGrid);
+
+    // --- Hinge Assembly & Door Group ---
+    const HINGE_X = -2.22;
     const hingeGroup = new THREE.Group();
     hingeGroup.position.set(HINGE_X, 0, 0.15);
     scene.add(hingeGroup);
 
-    // Heavy Industrial Hinge Brackets
-    const hingeBracketGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.9, 24);
-    const topHinge = new THREE.Mesh(hingeBracketGeo, chromeMaterial);
+    // Industrial Solid Hinge Cylinders
+    const hingeGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.85, 18);
+    const topHinge = new THREE.Mesh(hingeGeo, chromeMaterial);
     topHinge.position.set(0, 1.4, 0);
     hingeGroup.add(topHinge);
 
-    const bottomHinge = new THREE.Mesh(hingeBracketGeo, chromeMaterial);
+    const bottomHinge = new THREE.Mesh(hingeGeo, chromeMaterial);
     bottomHinge.position.set(0, -1.4, 0);
     hingeGroup.add(bottomHinge);
 
-    // Door Sub-Group
+    // Door Sub-Group attached to hinge
     const doorGroup = new THREE.Group();
     doorGroup.position.set(-HINGE_X, 0, 0);
     hingeGroup.add(doorGroup);
 
-    // Main Door Disc
-    const doorPlateGeo = new THREE.CylinderGeometry(2.1, 2.15, 0.38, 64);
+    // Main Machined Solid Titanium Door Disc
+    const doorPlateGeo = new THREE.CylinderGeometry(2.1, 2.14, 0.36, 48);
     doorPlateGeo.rotateX(Math.PI / 2);
     const doorPlate = new THREE.Mesh(doorPlateGeo, steelDark);
     doorGroup.add(doorPlate);
 
-    // Front Bevel Ring
-    const frontRingGeo = new THREE.TorusGeometry(1.9, 0.1, 16, 64);
+    // Polished Front Bezel Ring
+    const frontRingGeo = new THREE.TorusGeometry(1.9, 0.08, 12, 48);
     const frontRing = new THREE.Mesh(frontRingGeo, steelPolished);
-    frontRing.position.z = 0.2;
+    frontRing.position.z = 0.19;
     doorGroup.add(frontRing);
 
-    // Peripheral Hex Rivets
+    // 16 Perimeter Rivets
     const rivetGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.05, 8);
     rivetGeo.rotateX(Math.PI / 2);
-    for (let i = 0; i < 24; i++) {
-      const angle = (i * 2 * Math.PI) / 24;
+    for (let i = 0; i < 16; i++) {
+      const angle = (i * 2 * Math.PI) / 16;
       const rivet = new THREE.Mesh(rivetGeo, chromeMaterial);
-      rivet.position.set(Math.cos(angle) * 1.88, Math.sin(angle) * 1.88, 0.21);
+      rivet.position.set(Math.cos(angle) * 1.88, Math.sin(angle) * 1.88, 0.2);
       doorGroup.add(rivet);
     }
 
-    // --- Locking Bolts (8 Radial Bolts with independent physics on blast) ---
+    // --- 8 Radial Steel Locking Bolts ---
     const boltBaseDist = 1.95;
-    const boltRetractedDist = 1.58;
-    const boltGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.6, 20);
+    const boltRetractedDist = 1.55;
+    const boltGeo = new THREE.CylinderGeometry(0.085, 0.085, 0.58, 16);
 
-    interface BoltData {
+    interface BoltInfo {
       mesh: THREE.Mesh;
       baseAngle: number;
-      blastVelocity: THREE.Vector3;
-      blastRotVelocity: THREE.Vector3;
+      ejected: boolean;
+      vel: THREE.Vector3;
+      rotVel: THREE.Vector3;
     }
-    const boltsData: BoltData[] = [];
+    const bolts: BoltInfo[] = [];
 
     for (let i = 0; i < numBolts; i++) {
       const angle = (i * 2 * Math.PI) / numBolts;
-      const bolt = new THREE.Mesh(boltGeo, chromeMaterial.clone());
+      const bolt = new THREE.Mesh(boltGeo, chromeMaterial);
       bolt.rotation.z = angle + Math.PI / 2;
       bolt.position.set(Math.cos(angle) * boltBaseDist, Math.sin(angle) * boltBaseDist, 0);
       doorGroup.add(bolt);
 
-      // Random high-speed trajectory when ejected in blast
-      const blastSpeed = 8.0 + Math.random() * 9.0;
-      const blastVelocity = new THREE.Vector3(
-        Math.cos(angle) * blastSpeed,
-        Math.sin(angle) * blastSpeed + Math.random() * 2.0,
-        Math.random() * 6.0 + 3.0
-      );
-      const blastRotVelocity = new THREE.Vector3(
-        (Math.random() - 0.5) * 22,
-        (Math.random() - 0.5) * 22,
-        (Math.random() - 0.5) * 22
-      );
-      boltsData.push({ mesh: bolt, baseAngle: angle, blastVelocity, blastRotVelocity });
+      bolts.push({
+        mesh: bolt,
+        baseAngle: angle,
+        ejected: false,
+        vel: new THREE.Vector3(
+          Math.cos(angle) * (5 + Math.random() * 4),
+          Math.sin(angle) * (5 + Math.random() * 4) + 1.5,
+          Math.random() * 3 + 2
+        ),
+        rotVel: new THREE.Vector3(
+          (Math.random() - 0.5) * 12,
+          (Math.random() - 0.5) * 12,
+          (Math.random() - 0.5) * 12
+        ),
+      });
     }
 
     // --- Central Combination Dial Mechanism ---
     const dialGroup = new THREE.Group();
-    dialGroup.position.set(0, 0, 0.22);
+    dialGroup.position.set(0, 0, 0.2);
     doorGroup.add(dialGroup);
 
-    // Dial Base Ring
-    const dialBaseGeo = new THREE.CylinderGeometry(0.9, 0.95, 0.12, 48);
+    // Dial Brass Outer Ring
+    const dialBaseGeo = new THREE.CylinderGeometry(0.85, 0.9, 0.1, 36);
     dialBaseGeo.rotateX(Math.PI / 2);
     const dialBase = new THREE.Mesh(dialBaseGeo, brassAccent);
     dialGroup.add(dialBase);
 
-    // Graduation Dial Face
-    const dialFaceGeo = new THREE.CylinderGeometry(0.75, 0.75, 0.06, 48);
+    // Dial Face
+    const dialFaceGeo = new THREE.CylinderGeometry(0.72, 0.72, 0.05, 36);
     dialFaceGeo.rotateX(Math.PI / 2);
     const dialFace = new THREE.Mesh(dialFaceGeo, steelPolished);
-    dialFace.position.z = 0.06;
+    dialFace.position.z = 0.05;
     dialGroup.add(dialFace);
 
-    // Dial Knurled Knob
-    const knobGeo = new THREE.CylinderGeometry(0.38, 0.42, 0.2, 32);
+    // Dial Center Knob
+    const knobGeo = new THREE.CylinderGeometry(0.35, 0.38, 0.18, 24);
     knobGeo.rotateX(Math.PI / 2);
     const knob = new THREE.Mesh(knobGeo, chromeMaterial);
-    knob.position.z = 0.16;
+    knob.position.z = 0.14;
     dialGroup.add(knob);
 
-    // Graduation tick marks on dial
-    const tickGeo = new THREE.BoxGeometry(0.02, 0.08, 0.02);
-    for (let i = 0; i < 40; i++) {
-      const angle = (i * 2 * Math.PI) / 40;
-      const isMajor = i % 5 === 0;
+    // Graduation Tick Marks (Optimized: 24 marks)
+    for (let i = 0; i < 24; i++) {
+      const angle = (i * 2 * Math.PI) / 24;
+      const isMajor = i % 4 === 0;
       const tick = new THREE.Mesh(
-        isMajor ? new THREE.BoxGeometry(0.03, 0.12, 0.03) : tickGeo,
+        new THREE.BoxGeometry(0.02, isMajor ? 0.1 : 0.06, 0.02),
         isMajor ? brassAccent : chromeMaterial
       );
       tick.rotation.z = angle;
-      tick.position.set(Math.cos(angle) * 0.68, Math.sin(angle) * 0.68, 0.1);
+      tick.position.set(Math.cos(angle) * 0.65, Math.sin(angle) * 0.65, 0.08);
       dialGroup.add(tick);
     }
 
     // --- Heavy 3-Spoke Turning Helm / Steering Wheel ---
     const helmGroup = new THREE.Group();
-    helmGroup.position.set(0, 0, 0.4);
+    helmGroup.position.set(0, 0, 0.36);
     doorGroup.add(helmGroup);
 
-    // Center Hub
-    const helmHubGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.15, 24);
+    // Center Wheel Hub
+    const helmHubGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.12, 18);
     helmHubGeo.rotateX(Math.PI / 2);
     const helmHub = new THREE.Mesh(helmHubGeo, chromeMaterial);
     helmGroup.add(helmHub);
 
-    // 3 Radial Spokes with handles (break apart independently on blast)
-    interface SpokeData {
-      spokeMesh: THREE.Mesh;
-      handleMesh: THREE.Mesh;
-      baseAngle: number;
-      blastVelocity: THREE.Vector3;
-      blastRot: THREE.Vector3;
-    }
-    const spokesData: SpokeData[] = [];
-
+    // 3 Radial Spokes with Brass Handles
     for (let i = 0; i < 3; i++) {
       const angle = (i * 2 * Math.PI) / 3;
-      const spokeGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.85, 16);
-      const spoke = new THREE.Mesh(spokeGeo, chromeMaterial.clone());
+      const spokeGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.8, 12);
+      const spoke = new THREE.Mesh(spokeGeo, chromeMaterial);
       spoke.rotation.z = angle + Math.PI / 2;
-      spoke.position.set(Math.cos(angle) * 0.42, Math.sin(angle) * 0.42, 0);
+      spoke.position.set(Math.cos(angle) * 0.4, Math.sin(angle) * 0.4, 0);
       helmGroup.add(spoke);
 
-      // Handle grip
-      const handleGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.25, 16);
+      const handleGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.22, 12);
       handleGeo.rotateX(Math.PI / 2);
-      const handle = new THREE.Mesh(handleGeo, brassAccent.clone());
-      handle.position.set(Math.cos(angle) * 0.88, Math.sin(angle) * 0.88, 0.05);
+      const handle = new THREE.Mesh(handleGeo, brassAccent);
+      handle.position.set(Math.cos(angle) * 0.82, Math.sin(angle) * 0.82, 0.04);
       helmGroup.add(handle);
-
-      const spokeVel = new THREE.Vector3(
-        Math.cos(angle) * (6.0 + Math.random() * 5),
-        Math.sin(angle) * (6.0 + Math.random() * 5) + 2.0,
-        Math.random() * 6.0 + 3.0
-      );
-      const spokeRot = new THREE.Vector3(
-        (Math.random() - 0.5) * 20,
-        (Math.random() - 0.5) * 20,
-        (Math.random() - 0.5) * 20
-      );
-      spokesData.push({ spokeMesh: spoke, handleMesh: handle, baseAngle: angle, blastVelocity: spokeVel, blastRot: spokeRot });
     }
 
     // --- Status LED Indicators (Top & Bottom) ---
-    const ledHousingGeo = new THREE.CylinderGeometry(0.08, 0.1, 0.1, 16);
+    const ledHousingGeo = new THREE.CylinderGeometry(0.07, 0.09, 0.09, 12);
     ledHousingGeo.rotateX(Math.PI / 2);
 
-    // Top LED Mount
+    // Top LED Mount & Bulb
     const topLedHousing = new THREE.Mesh(ledHousingGeo, chromeMaterial);
-    topLedHousing.position.set(0, 1.4, 0.22);
+    topLedHousing.position.set(0, 1.4, 0.2);
     doorGroup.add(topLedHousing);
 
-    const topLedBulb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 16), ledMat);
-    topLedBulb.position.set(0, 1.4, 0.28);
+    const topLedBulb = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 12), ledMat);
+    topLedBulb.position.set(0, 1.4, 0.26);
     doorGroup.add(topLedBulb);
     doorGroup.add(ledLight);
 
-    // Bottom LED Mount
+    // Bottom LED Mount & Bulb
     const bottomLedHousing = new THREE.Mesh(ledHousingGeo, chromeMaterial);
-    bottomLedHousing.position.set(0, -1.4, 0.22);
+    bottomLedHousing.position.set(0, -1.4, 0.2);
     doorGroup.add(bottomLedHousing);
 
-    const bottomLedBulb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 16), bottomLedMat);
-    bottomLedBulb.position.set(0, -1.4, 0.28);
+    const bottomLedBulb = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 12), bottomLedMat);
+    bottomLedBulb.position.set(0, -1.4, 0.26);
     doorGroup.add(bottomLedBulb);
     doorGroup.add(bottomLedLight);
 
-    // =========================================================================
-    // EPIC CATASTROPHIC VAULT BLAST SYSTEM (MULTI-TIERED VISCERAL EXPLOSION)
-    // =========================================================================
-
-    // 1. Central Expanding Plasma Fireball Sphere (3D Fiery Core)
-    const fireballGeo = new THREE.IcosahedronGeometry(0.6, 3);
-    const fireballMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-    });
-    const fireballMesh = new THREE.Mesh(fireballGeo, fireballMat);
-    fireballMesh.position.set(0, 0, 0.4);
-    scene.add(fireballMesh);
-
-    // 2. Triple Supersonic Shockwave Waves (Concentric High-Speed Rings)
-    const shockwaveMat1 = new THREE.MeshBasicMaterial({
-      color: 0xffeedd,
-      transparent: true,
-      opacity: 0,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-    });
-    const shockwave1 = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.35, 48), shockwaveMat1);
-    shockwave1.position.set(0, 0, 0.6);
-    scene.add(shockwave1);
-
-    const shockwaveMat2 = new THREE.MeshBasicMaterial({
-      color: 0xff5500,
-      transparent: true,
-      opacity: 0,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-    });
-    const shockwave2 = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.6, 48), shockwaveMat2);
-    shockwave2.position.set(0, 0, 0.5);
-    shockwave2.rotation.z = Math.PI / 4;
-    scene.add(shockwave2);
-
-    const shockwaveMat3 = new THREE.MeshBasicMaterial({
-      color: 0xff1100,
-      transparent: true,
-      opacity: 0,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-    });
-    const shockwave3 = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.9, 48), shockwaveMat3);
-    shockwave3.position.set(0, 0, 0.3);
-    scene.add(shockwave3);
-
-    // 3. High-Velocity Sparks & Molten Titanium Slag (1,000 Sparks)
-    const sparkCount = 1000;
+    // --- REALISTIC INDUSTRIAL BREACH PARTICLES (GRITTY & NON-CARTOON) ---
+    // 1. High-Velocity Hot Sparks (120 concentrated metal sparks, only active on breach)
+    const sparkCount = 120;
     const sparkGeo = new THREE.BufferGeometry();
     const sparkPositions = new Float32Array(sparkCount * 3);
     const sparkVelocities = new Float32Array(sparkCount * 3);
-    const sparkColors = new Float32Array(sparkCount * 3);
 
     for (let i = 0; i < sparkCount; i++) {
       sparkPositions[i * 3] = (Math.random() - 0.5) * 0.6;
       sparkPositions[i * 3 + 1] = (Math.random() - 0.5) * 0.6;
       sparkPositions[i * 3 + 2] = 0.3;
 
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.random() * Math.PI;
-      const speed = 5.0 + Math.random() * 12.0;
-      sparkVelocities[i * 3] = Math.sin(phi) * Math.cos(theta) * speed;
-      sparkVelocities[i * 3 + 1] = Math.sin(phi) * Math.sin(theta) * speed;
-      sparkVelocities[i * 3 + 2] = Math.abs(Math.cos(phi)) * speed + 3.0;
-
-      // Incandescent gradient: White-hot to fiery amber/red
-      const isWhiteHot = Math.random() > 0.65;
-      sparkColors[i * 3] = 1.0;
-      sparkColors[i * 3 + 1] = isWhiteHot ? 0.95 : 0.35 + Math.random() * 0.45;
-      sparkColors[i * 3 + 2] = isWhiteHot ? 0.8 : 0.05;
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 3.5 + Math.random() * 6.0;
+      sparkVelocities[i * 3] = Math.cos(angle) * speed;
+      sparkVelocities[i * 3 + 1] = Math.sin(angle) * speed + 1.5;
+      sparkVelocities[i * 3 + 2] = Math.random() * 4.0 + 1.5;
     }
-
     sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPositions, 3));
-    sparkGeo.setAttribute('color', new THREE.BufferAttribute(sparkColors, 3));
-
     const sparkMat = new THREE.PointsMaterial({
-      size: 0.16,
-      vertexColors: true,
+      size: 0.08,
+      color: 0xffaa33,
       transparent: true,
       opacity: 0,
       blending: THREE.AdditiveBlending,
@@ -492,34 +413,25 @@ export default function VaultDoor3D({
     const sparkPoints = new THREE.Points(sparkGeo, sparkMat);
     scene.add(sparkPoints);
 
-    // 4. Dense Volumetric Smoke Clouds (500 Billowing Particles)
-    const smokeCount = 500;
+    // 2. Gritty Billowing Smoke (60 dark charcoal/smolder particles)
+    const smokeCount = 60;
     const smokeGeo = new THREE.BufferGeometry();
     const smokePositions = new Float32Array(smokeCount * 3);
     const smokeVelocities = new Float32Array(smokeCount * 3);
-    const smokeColors = new Float32Array(smokeCount * 3);
 
     for (let i = 0; i < smokeCount; i++) {
-      smokePositions[i * 3] = (Math.random() - 0.5) * 0.5;
-      smokePositions[i * 3 + 1] = (Math.random() - 0.5) * 0.5;
-      smokePositions[i * 3 + 2] = 0.2;
+      smokePositions[i * 3] = (Math.random() - 0.5) * 0.4;
+      smokePositions[i * 3 + 1] = (Math.random() - 0.5) * 0.4;
+      smokePositions[i * 3 + 2] = 0.1;
 
-      smokeVelocities[i * 3] = (Math.random() - 0.5) * 4.0;
-      smokeVelocities[i * 3 + 1] = Math.random() * 4.5 + 1.2; // Rises with buoyant thermal plume
-      smokeVelocities[i * 3 + 2] = Math.random() * 4.0 + 1.0;
-
-      const isFire = Math.random() > 0.55;
-      smokeColors[i * 3] = isFire ? 1.0 : 0.15;
-      smokeColors[i * 3 + 1] = isFire ? 0.28 : 0.15;
-      smokeColors[i * 3 + 2] = isFire ? 0.02 : 0.15;
+      smokeVelocities[i * 3] = (Math.random() - 0.5) * 1.5;
+      smokeVelocities[i * 3 + 1] = Math.random() * 2.2 + 0.8; // Buoyant upward draft
+      smokeVelocities[i * 3 + 2] = Math.random() * 1.5;
     }
-
     smokeGeo.setAttribute('position', new THREE.BufferAttribute(smokePositions, 3));
-    smokeGeo.setAttribute('color', new THREE.BufferAttribute(smokeColors, 3));
-
     const smokeMat = new THREE.PointsMaterial({
-      size: 0.48,
-      vertexColors: true,
+      size: 0.38,
+      color: 0x22262e,
       transparent: true,
       opacity: 0,
       blending: THREE.NormalBlending,
@@ -527,66 +439,7 @@ export default function VaultDoor3D({
     const smokePoints = new THREE.Points(smokeGeo, smokeMat);
     scene.add(smokePoints);
 
-    // 5. Heavy Physical Tumbling Shrapnel Chunks (24 3D fragments)
-    const debrisGroup = new THREE.Group();
-    scene.add(debrisGroup);
-    const debrisList: {
-      mesh: THREE.Mesh;
-      velocity: THREE.Vector3;
-      rotVelocity: THREE.Vector3;
-    }[] = [];
-
-    const debrisGeos = [
-      new THREE.DodecahedronGeometry(0.22),
-      new THREE.BoxGeometry(0.28, 0.18, 0.32),
-      new THREE.CylinderGeometry(0.12, 0.08, 0.45, 8),
-      new THREE.ConeGeometry(0.16, 0.35, 6),
-    ];
-
-    for (let i = 0; i < 24; i++) {
-      const geo = debrisGeos[i % debrisGeos.length];
-      const mat = (i % 3 === 0 ? brassAccent : i % 3 === 1 ? steelPolished : steelDark).clone();
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.visible = false;
-      debrisGroup.add(mesh);
-
-      const angle = (i / 24) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
-      const speed = 4.5 + Math.random() * 7.5;
-      const velocity = new THREE.Vector3(
-        Math.cos(angle) * speed,
-        Math.sin(angle) * speed + 3.0,
-        Math.random() * 6.0 + 3.5
-      );
-      const rotVelocity = new THREE.Vector3(
-        (Math.random() - 0.5) * 18,
-        (Math.random() - 0.5) * 18,
-        (Math.random() - 0.5) * 18
-      );
-      debrisList.push({ mesh, velocity, rotVelocity });
-    }
-
-    // 6. Dynamic High-Voltage Electrical Lightning Arcs (Severed Circuit Discharge)
-    const lightningCount = 5;
-    const lightningLines: THREE.Line[] = [];
-    const lightningSegments = 8;
-
-    for (let i = 0; i < lightningCount; i++) {
-      const lineGeo = new THREE.BufferGeometry();
-      const linePos = new Float32Array(lightningSegments * 3);
-      lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
-      const lineMat = new THREE.LineBasicMaterial({
-        color: 0x00ffff,
-        transparent: true,
-        opacity: 0,
-        blending: THREE.AdditiveBlending,
-        linewidth: 2,
-      });
-      const line = new THREE.Line(lineGeo, lineMat);
-      scene.add(line);
-      lightningLines.push(line);
-    }
-
-    // --- Mouse Move Listener for subtle parallax ---
+    // Mouse Move Listener for subtle parallax
     const handleMouseMove = (e: MouseEvent) => {
       const rect = container.getBoundingClientRect();
       const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -596,96 +449,74 @@ export default function VaultDoor3D({
     };
     container.addEventListener('mousemove', handleMouseMove);
 
-    // --- Animation Loop ---
+    // --- Animation Loop State Variables ---
     let animationFrameId: number;
     let clock = new THREE.Clock();
     let helmSpin = 0;
-    let unlockStep = 0;
-    let greenBlinkCount = 0;
-    let blastInitialTriggered = false;
-    let secondaryDetonation1 = false;
-    let secondaryDetonation2 = false;
+    let unlockStage = 0; // 0=idle, 1=greenBlink, 2=helmSpin, 3=boltsRetract, 4=doorSwing, 5=openHold, 6=done
+    let greenTimer = 0;
+    let holdTimer = 0;
+    let isUnlockedFired = false;
+    let breachTriggered = false;
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
-      const delta = Math.min(clock.getDelta(), 0.1);
+      const delta = Math.min(clock.getDelta(), 0.05); // Cap delta to prevent large physics jumps
       const elapsed = clock.getElapsedTime();
       const state = stateRef.current;
 
-      // 0. Dust Particles Drift
-      const dPositions = dustGeo.attributes.position.array as Float32Array;
-      for (let i = 0; i < dustCount; i++) {
-        dPositions[i * 3 + 1] += Math.sin(elapsed + i) * 0.002;
-        dPositions[i * 3] += Math.cos(elapsed * 0.5 + i) * 0.001;
-      }
-      dustGeo.attributes.position.needsUpdate = true;
+      // 0. Dust Particles Drift (GPU-only rotation = ZERO CPU overhead!)
+      dustPoints.rotation.y = elapsed * 0.02;
 
-      // 1. Mouse Parallax (subtle tilt)
+      // 1. Mouse Parallax (subtle high-spec depth)
       if (state.status !== 'destroyed') {
-        const targetRotX = state.mouseY * 0.12;
-        const targetRotY = state.mouseX * 0.16;
+        const targetRotX = state.mouseY * 0.08;
+        const targetRotY = state.mouseX * 0.10;
         scene.rotation.x += (targetRotX - scene.rotation.x) * 0.05;
         scene.rotation.y += (targetRotY - scene.rotation.y) * 0.05;
       }
 
-      // 2. Dial Angle Lerp
+      // 2. Smooth Dial Angle Lerp
       state.dialAngle += (state.targetDialAngle - state.dialAngle) * 0.15;
       dialGroup.rotation.z = state.dialAngle;
 
-      // 3. Status Handling & Animations
+      // 3. Status State Machine
 
-      // --- IDLE STATE ---
+      // -------------------------------------------------------------
+      // STATE: IDLE
+      // -------------------------------------------------------------
       if (state.status === 'idle') {
         const pulse = (Math.sin(elapsed * 2.5) + 1) * 0.5;
+        // Clean Cyan Idle Glow
         ledMat.color.setHex(0x00d2ef);
         bottomLedMat.color.setHex(0x00d2ef);
         ledLight.color.setHex(0x00d2ef);
         bottomLedLight.color.setHex(0x00d2ef);
-        ledLight.intensity = 1.0 + pulse * 1.0;
-        bottomLedLight.intensity = 1.0 + pulse * 1.0;
+        ledLight.intensity = 1.0 + pulse * 0.8;
+        bottomLedLight.intensity = 1.0 + pulse * 0.8;
+
         chamberLight.intensity = 0;
-        blastFlashLight.intensity = 0;
-        blastFireLight.intensity = 0;
-        renderer.toneMappingExposure = 1.25;
-        camera.fov = defaultFov;
-        camera.updateProjectionMatrix();
-
-        // Reset positions smoothly
-        state.boltsProgress = Math.max(0, state.boltsProgress - delta * 2);
-        state.doorOpenAngle = Math.max(0, state.doorOpenAngle - delta * 2);
-        state.destructionProgress = 0;
-        state.shockwaveRadius = 0;
-        unlockStep = 0;
-        greenBlinkCount = 0;
-        blastInitialTriggered = false;
-        secondaryDetonation1 = false;
-        secondaryDetonation2 = false;
-
-        fireballMat.opacity = 0;
-        fireballMesh.scale.set(0.1, 0.1, 0.1);
-        shockwaveMat1.opacity = 0;
-        shockwaveMat2.opacity = 0;
-        shockwaveMat3.opacity = 0;
+        breachHeatLight.intensity = 0;
+        coreGridMat.opacity = 0;
         sparkMat.opacity = 0;
         smokeMat.opacity = 0;
 
-        lightningLines.forEach((l) => {
-          (l.material as THREE.LineBasicMaterial).opacity = 0;
-        });
-
+        // Reset positions smoothly
+        state.boltsProgress = Math.max(0, state.boltsProgress - delta * 3);
+        state.doorOpenAngle = Math.max(0, state.doorOpenAngle - delta * 3);
+        hingeGroup.rotation.y = state.doorOpenAngle;
         doorGroup.position.set(-HINGE_X, 0, 0);
         doorGroup.rotation.set(0, 0, 0);
-        hingeGroup.position.set(HINGE_X, 0, 0.15);
-        hingeGroup.rotation.set(0, 0, 0);
 
-        dialGroup.position.set(0, 0, 0.22);
-        dialGroup.rotation.set(0, 0, 0);
-
-        helmGroup.position.set(0, 0, 0.4);
-        helmGroup.rotation.set(0, 0, 0);
+        unlockStage = 0;
+        greenTimer = 0;
+        holdTimer = 0;
+        helmSpin = 0;
+        isUnlockedFired = false;
+        breachTriggered = false;
 
         // Reset bolts to standard locked positions
-        boltsData.forEach((b) => {
+        bolts.forEach((b) => {
           b.mesh.visible = true;
           b.mesh.rotation.set(0, 0, b.baseAngle + Math.PI / 2);
           b.mesh.position.set(
@@ -695,361 +526,218 @@ export default function VaultDoor3D({
           );
         });
 
-        // Reset spokes
-        spokesData.forEach((s) => {
-          s.spokeMesh.rotation.set(0, 0, s.baseAngle + Math.PI / 2);
-          s.spokeMesh.position.set(Math.cos(s.baseAngle) * 0.42, Math.sin(s.baseAngle) * 0.42, 0);
-          s.handleMesh.position.set(Math.cos(s.baseAngle) * 0.88, Math.sin(s.baseAngle) * 0.88, 0.05);
-        });
+        dialGroup.position.set(0, 0, 0.2);
+        dialGroup.rotation.set(0, 0, state.dialAngle);
+        helmGroup.rotation.set(0, 0, 0);
 
-        debrisList.forEach((d) => {
-          d.mesh.visible = false;
-        });
+        camera.position.set(0, 0, 7.0);
       }
 
-      // --- TYPING STATE ---
+      // -------------------------------------------------------------
+      // STATE: TYPING
+      // -------------------------------------------------------------
       else if (state.status === 'typing') {
         ledMat.color.setHex(0x3b82f6);
         bottomLedMat.color.setHex(0x3b82f6);
         ledLight.color.setHex(0x3b82f6);
         bottomLedLight.color.setHex(0x3b82f6);
-        ledLight.intensity = 2.5;
-        bottomLedLight.intensity = 2.5;
+        ledLight.intensity = 2.2;
+        bottomLedLight.intensity = 2.2;
       }
 
-      // --- REJECTING (WRONG PASSWORD) STATE ---
+      // -------------------------------------------------------------
+      // STATE: REJECTING (WRONG PASSWORD)
+      // -------------------------------------------------------------
       else if (state.status === 'rejecting') {
-        // PROMINENT RED LIGHT BLINKING! (Strobe effect at ~14Hz)
-        const isRedBlinkOn = Math.sin(elapsed * 30) > 0;
-        const redHex = isRedBlinkOn ? 0xff0033 : 0x2a0005;
-
-        ledMat.color.setHex(redHex);
-        bottomLedMat.color.setHex(redHex);
+        // High-Intensity Warning Red Light Blinking (~8Hz)
+        const isRedOn = Math.sin(elapsed * 24) > 0;
+        const redColor = isRedOn ? 0xff0033 : 0x220006;
+        ledMat.color.setHex(redColor);
+        bottomLedMat.color.setHex(redColor);
         ledLight.color.setHex(0xff0033);
         bottomLedLight.color.setHex(0xff0033);
-        ledLight.intensity = isRedBlinkOn ? 6.5 : 0.1;
-        bottomLedLight.intensity = isRedBlinkOn ? 6.5 : 0.1;
+        ledLight.intensity = isRedOn ? 6.0 : 0.2;
+        bottomLedLight.intensity = isRedOn ? 6.0 : 0.2;
 
-        // Violent Sinusoidal Door Rattle
-        if (state.shakeIntensity > 0.005) {
-          const shakeX = Math.sin(elapsed * 65) * state.shakeIntensity * 0.16;
-          const shakeY = Math.cos(elapsed * 60) * state.shakeIntensity * 0.09;
+        // Mechanical Door Rattle
+        if (state.shakeIntensity > 0.01) {
+          const shakeX = Math.sin(elapsed * 55) * state.shakeIntensity * 0.08;
+          const shakeY = Math.cos(elapsed * 50) * state.shakeIntensity * 0.04;
           doorGroup.position.x = -HINGE_X + shakeX;
           doorGroup.position.y = shakeY;
-          state.shakeIntensity *= 0.94; // Decay
+          state.shakeIntensity *= 0.95;
         } else {
           doorGroup.position.x = -HINGE_X;
           doorGroup.position.y = 0;
         }
       }
 
-      // --- UNLOCKING (CORRECT PASSWORD) STATE ---
+      // -------------------------------------------------------------
+      // STATE: UNLOCKING (CORRECT PASSWORD - CINEMATIC SEQUENCE)
+      // -------------------------------------------------------------
       else if (state.status === 'unlocking' || state.status === 'unlocked') {
-        // Sequence Step 0: DISTINCT GREEN LIGHT BLINKING!
-        if (unlockStep === 0) {
-          greenBlinkCount += delta * 6;
-          const isGreenBlinkOn = Math.sin(greenBlinkCount * Math.PI) > 0;
-          const greenHex = isGreenBlinkOn ? 0x00ff88 : 0x003318;
+        // Sequence Stage 1: DISTINCT GREEN CONFIRMATION BLINK (1.2 seconds, 3 clear emerald pulses)
+        if (unlockStage === 0 || unlockStage === 1) {
+          unlockStage = 1;
+          greenTimer += delta;
+
+          // Crisp 3-pulse emerald blinking
+          const pulsePhase = Math.sin(greenTimer * 8.0);
+          const isGreenOn = pulsePhase > -0.2;
+          const greenHex = isGreenOn ? 0x00ff88 : 0x00441a;
 
           ledMat.color.setHex(greenHex);
           bottomLedMat.color.setHex(greenHex);
           ledLight.color.setHex(0x00ff88);
           bottomLedLight.color.setHex(0x00ff88);
-          ledLight.intensity = isGreenBlinkOn ? 6.5 : 0.2;
-          bottomLedLight.intensity = isGreenBlinkOn ? 6.5 : 0.2;
+          ledLight.intensity = isGreenOn ? 6.5 : 0.4;
+          bottomLedLight.intensity = isGreenOn ? 6.5 : 0.4;
 
-          if (greenBlinkCount >= 3.5) {
+          if (greenTimer >= 1.2) {
+            // Lock green light to steady vibrant emerald
             ledMat.color.setHex(0x10b981);
             bottomLedMat.color.setHex(0x10b981);
             ledLight.color.setHex(0x10b981);
             bottomLedLight.color.setHex(0x10b981);
-            ledLight.intensity = 4.5;
-            bottomLedLight.intensity = 4.5;
-            unlockStep = 1;
+            ledLight.intensity = 5.0;
+            bottomLedLight.intensity = 5.0;
+            unlockStage = 2; // Proceed to helm spin
           }
         }
 
-        // Sequence Step 1: Turning Helm Wheel Spins 360°
-        else if (unlockStep === 1) {
-          helmSpin += delta * 8.5;
+        // Sequence Stage 2: Mechanical Steering Helm Wheel Spins 360° (0.9s)
+        else if (unlockStage === 2) {
+          helmSpin += delta * 7.5;
           helmGroup.rotation.z = helmSpin;
           if (helmSpin >= Math.PI * 2) {
-            helmSpin = Math.PI * 2;
-            unlockStep = 2;
+            helmGroup.rotation.z = Math.PI * 2;
+            unlockStage = 3; // Proceed to bolt retraction
           }
         }
 
-        // Sequence Step 2: Radial Steel Locking Bolts Retract Inward
-        else if (unlockStep === 2) {
-          state.boltsProgress = Math.min(1.0, state.boltsProgress + delta * 3.4);
+        // Sequence Stage 3: Radial Locking Bolts Retract Inward (0.7s)
+        else if (unlockStage === 3) {
+          state.boltsProgress = Math.min(1.0, state.boltsProgress + delta * 2.2);
+          for (let i = 0; i < numBolts; i++) {
+            const angle = bolts[i].baseAngle;
+            const dist = THREE.MathUtils.lerp(boltBaseDist, boltRetractedDist, state.boltsProgress);
+            bolts[i].mesh.position.x = Math.cos(angle) * dist;
+            bolts[i].mesh.position.y = Math.sin(angle) * dist;
+          }
+
           if (state.boltsProgress >= 1.0) {
-            unlockStep = 3;
+            unlockStage = 4; // Proceed to door swing
           }
         }
 
-        // Sequence Step 3: Vault Door Visibly Swings Wide Open!
-        else if (unlockStep === 3) {
-          const targetOpen = -1.52; // ~87 degrees
-          state.doorOpenAngle += (targetOpen - state.doorOpenAngle) * (delta * 3.4);
+        // Sequence Stage 4: Heavy Titanium Door Visibly Swings Wide Open! (1.4s)
+        else if (unlockStage === 4) {
+          const targetOpenAngle = -1.48; // ~85 degrees wide open
+          state.doorOpenAngle += (targetOpenAngle - state.doorOpenAngle) * (delta * 2.8);
+          hingeGroup.rotation.y = state.doorOpenAngle;
 
-          // Glowing chamber interior emerald light floods outward!
-          chamberLight.color.setHex(0x10b981);
-          chamberLight.intensity = Math.min(5.5, chamberLight.intensity + delta * 5.0);
+          // Glowing chamber interior light floods outward!
+          chamberLight.intensity = Math.min(6.5, chamberLight.intensity + delta * 5.0);
+          coreGridMat.opacity = Math.min(0.85, coreGridMat.opacity + delta * 1.5);
 
-          if (Math.abs(state.doorOpenAngle - targetOpen) < 0.04) {
-            state.doorOpenAngle = targetOpen;
-            unlockStep = 4;
+          if (Math.abs(state.doorOpenAngle - targetOpenAngle) < 0.05) {
+            state.doorOpenAngle = targetOpenAngle;
+            hingeGroup.rotation.y = targetOpenAngle;
+            unlockStage = 5; // Hold open for user appreciation
+          }
+        }
+
+        // Sequence Stage 5: Pause on Fully Open Vault Door, then Smoothly Transition Inside
+        else if (unlockStage === 5) {
+          holdTimer += delta;
+          if (holdTimer >= 0.7 && !isUnlockedFired) {
+            isUnlockedFired = true;
+            unlockStage = 6;
             if (onUnlockComplete) {
-              setTimeout(onUnlockComplete, 400);
+              onUnlockComplete();
             }
           }
         }
       }
 
-      // --- CATASTROPHIC VAULT BLAST (3RD FAILED ATTEMPT) ---
+      // -------------------------------------------------------------
+      // STATE: DESTROYED (REALISTIC INDUSTRIAL BREACH - NOT CARTOON!)
+      // -------------------------------------------------------------
       else if (state.status === 'destroyed') {
         state.destructionProgress += delta;
 
-        // Phase 1: Initial Blinding Nuclear Detonation
-        if (!blastInitialTriggered) {
-          blastInitialTriggered = true;
-          blastFlashLight.intensity = 45.0; // Blinding flash
-          blastFireLight.intensity = 28.0;
-          renderer.toneMappingExposure = 3.6; // Dramatic exposure surge
-          camera.fov = 44; // FOV kick shockwave punch
-          camera.updateProjectionMatrix();
-
-          fireballMat.opacity = 1.0;
-          fireballMesh.scale.set(0.4, 0.4, 0.4);
-
-          shockwaveMat1.opacity = 1.0;
-          shockwaveMat2.opacity = 1.0;
-          shockwaveMat3.opacity = 1.0;
-          state.shockwaveRadius = 0.4;
-
-          // Activate all 24 physical shrapnel debris chunks
-          debrisList.forEach((d) => {
-            d.mesh.visible = true;
-            d.mesh.position.set(
-              (Math.random() - 0.5) * 0.9,
-              (Math.random() - 0.5) * 0.9,
-              0.4
-            );
-          });
+        // Initial Rupture Impact
+        if (!breachTriggered) {
+          breachTriggered = true;
+          breachHeatLight.intensity = 18.0;
+          sparkMat.opacity = 1.0;
+          smokeMat.opacity = 0.85;
+          state.shakeIntensity = 2.5;
         }
 
-        // Exposure & FOV Recovery
-        renderer.toneMappingExposure = Math.max(1.25, renderer.toneMappingExposure - delta * 4.5);
-        camera.fov = Math.max(defaultFov, camera.fov - delta * 12);
-        camera.updateProjectionMatrix();
-
-        // Flash Lights Decay
-        blastFlashLight.intensity = Math.max(0, blastFlashLight.intensity - delta * 35);
-        blastFireLight.intensity = Math.max(3.0, blastFireLight.intensity - delta * 12);
-
-        // Expanding 3D Plasma Fireball Simulation
-        if (state.destructionProgress < 1.2) {
-          const fireballScale = Math.min(3.8, 0.4 + state.destructionProgress * 4.5);
-          fireballMesh.scale.set(fireballScale, fireballScale, fireballScale);
-          // Color shifts: White -> Yellow -> Crimson -> Translucent Dark Smoke
-          if (state.destructionProgress < 0.2) {
-            fireballMat.color.setHex(0xffffff);
-          } else if (state.destructionProgress < 0.5) {
-            fireballMat.color.setHex(0xffaa00);
-          } else {
-            fireballMat.color.setHex(0xff2200);
-          }
-          fireballMat.opacity = Math.max(0, 1.0 - state.destructionProgress * 0.9);
-        } else {
-          fireballMat.opacity = 0;
-        }
-
-        // Concentric Expanding Supersonic Shockwaves
-        state.shockwaveRadius += delta * 15.0;
-        shockwave1.scale.set(state.shockwaveRadius, state.shockwaveRadius, 1);
-        shockwaveMat1.opacity = Math.max(0, 1.0 - state.destructionProgress * 2.2);
-
-        const radius2 = state.shockwaveRadius * 0.85;
-        shockwave2.scale.set(radius2, radius2, 1);
-        shockwave2.rotation.z += delta * 6.0;
-        shockwaveMat2.opacity = Math.max(0, 0.9 - state.destructionProgress * 1.6);
-
-        const radius3 = state.shockwaveRadius * 0.65;
-        shockwave3.scale.set(radius3, radius3, 1);
-        shockwave3.rotation.z -= delta * 4.0;
-        shockwaveMat3.opacity = Math.max(0, 0.8 - state.destructionProgress * 1.2);
-
-        // Blinding emergency alarm red strobe
-        const alarmStrobe = Math.sin(elapsed * 35) > 0;
-        ledMat.color.setHex(alarmStrobe ? 0xff0000 : 0x330000);
-        bottomLedMat.color.setHex(alarmStrobe ? 0xff0000 : 0x330000);
-        ledLight.color.setHex(0xff0000);
-        bottomLedLight.color.setHex(0xff0000);
-        ledLight.intensity = alarmStrobe ? 9.0 : 0.2;
-        bottomLedLight.intensity = alarmStrobe ? 9.0 : 0.2;
-
-        // Interior burns with fiery red/orange glow
-        chamberLight.color.setHex(0xff3300);
-        chamberLight.intensity = 8.5;
-
-        // Particle opacities
-        sparkMat.opacity = Math.max(0, 1.0 - state.destructionProgress * 0.28);
-        smokeMat.opacity = Math.max(0, 0.9 - state.destructionProgress * 0.18);
-
-        // Secondary Micro-Detonation 1 at t = 0.35s (Mini Flash + Sparks surge)
-        if (state.destructionProgress > 0.35 && !secondaryDetonation1) {
-          secondaryDetonation1 = true;
-          blastFireLight.intensity = 22.0;
-          state.shakeIntensity = Math.max(state.shakeIntensity, 3.5);
-        }
-
-        // Secondary Micro-Detonation 2 at t = 0.75s
-        if (state.destructionProgress > 0.75 && !secondaryDetonation2) {
-          secondaryDetonation2 = true;
-          blastFlashLight.intensity = 15.0;
-          state.shakeIntensity = Math.max(state.shakeIntensity, 2.8);
-        }
-
-        // Explosive Sparks Simulation (Gravity + Air Drag)
-        const sPositions = sparkGeo.attributes.position.array as Float32Array;
-        for (let i = 0; i < sparkCount; i++) {
-          sPositions[i * 3] += sparkVelocities[i * 3] * delta;
-          sPositions[i * 3 + 1] += sparkVelocities[i * 3 + 1] * delta;
-          sPositions[i * 3 + 2] += sparkVelocities[i * 3 + 2] * delta;
-          sparkVelocities[i * 3 + 1] -= 14.0 * delta; // Heavy gravity pull
-          sparkVelocities[i * 3] *= 0.99;
-          sparkVelocities[i * 3 + 2] *= 0.99;
-        }
-        sparkGeo.attributes.position.needsUpdate = true;
-
-        // Volumetric Smoke Simulation (Billow, Convection & Expand)
-        const smPositions = smokeGeo.attributes.position.array as Float32Array;
-        for (let i = 0; i < smokeCount; i++) {
-          smPositions[i * 3] += smokeVelocities[i * 3] * delta;
-          smPositions[i * 3 + 1] += smokeVelocities[i * 3 + 1] * delta;
-          smPositions[i * 3 + 2] += smokeVelocities[i * 3 + 2] * delta;
-          // Air resistance damping & convection
-          smokeVelocities[i * 3] *= 0.97;
-          smokeVelocities[i * 3 + 1] += 0.8 * delta; // Thermal updraft
-          smokeVelocities[i * 3 + 2] *= 0.97;
-        }
-        smokeGeo.attributes.position.needsUpdate = true;
-
-        // Tumbling Shrapnel Physics
-        debrisList.forEach((d) => {
-          d.mesh.position.x += d.velocity.x * delta;
-          d.mesh.position.y += d.velocity.y * delta;
-          d.mesh.position.z += d.velocity.z * delta;
-          d.velocity.y -= 15.0 * delta; // Heavy Gravity
-
-          d.mesh.rotation.x += d.rotVelocity.x * delta;
-          d.mesh.rotation.y += d.rotVelocity.y * delta;
-          d.mesh.rotation.z += d.rotVelocity.z * delta;
-        });
-
-        // =====================================================================
-        // BALLISTIC EJECTION OF DOOR, BOLTS, HELM SPOKES & DIAL
-        // =====================================================================
-
-        // 1. Radial Locking Bolts violently shoot outward from their sockets
-        boltsData.forEach((b) => {
-          b.mesh.position.x += b.blastVelocity.x * delta;
-          b.mesh.position.y += b.blastVelocity.y * delta;
-          b.mesh.position.z += b.blastVelocity.z * delta;
-          b.blastVelocity.y -= 14.0 * delta;
-
-          b.mesh.rotation.x += b.blastRotVelocity.x * delta;
-          b.mesh.rotation.y += b.blastRotVelocity.y * delta;
-          b.mesh.rotation.z += b.blastRotVelocity.z * delta;
-        });
-
-        // 2. Helm Spokes Shatter & Fly Apart
-        spokesData.forEach((s) => {
-          s.spokeMesh.position.x += s.blastVelocity.x * delta;
-          s.spokeMesh.position.y += s.blastVelocity.y * delta;
-          s.spokeMesh.position.z += s.blastVelocity.z * delta;
-          s.handleMesh.position.x += s.blastVelocity.x * delta;
-          s.handleMesh.position.y += s.blastVelocity.y * delta;
-          s.handleMesh.position.z += s.blastVelocity.z * delta;
-
-          s.spokeMesh.rotation.x += s.blastRot.x * delta;
-          s.spokeMesh.rotation.y += s.blastRot.y * delta;
-          s.spokeMesh.rotation.z += s.blastRot.z * delta;
-        });
-
-        // 3. Central Combination Dial snaps loose and rockets outward
-        dialGroup.position.x += delta * 3.5;
-        dialGroup.position.y -= delta * 5.0;
-        dialGroup.position.z += delta * 4.2;
-        dialGroup.rotation.x += delta * 8.0;
-        dialGroup.rotation.z += delta * 14.0;
-
-        // 4. Heavy Steel Vault Door Plate Shears Off Hinges & Blasts Forward
-        doorGroup.position.z = Math.min(3.4, doorGroup.position.z + delta * 4.5);
-        doorGroup.position.y -= delta * 4.5; // Heavy fall
-        doorGroup.position.x += delta * 1.5;
-        doorGroup.rotation.x = Math.min(1.4, doorGroup.rotation.x + delta * 2.8);
-        doorGroup.rotation.y += delta * 0.9;
-        doorGroup.rotation.z += delta * 1.6;
-
-        // 5. Crackling Plasma Lightning Arcs Discharge across Ruptured Frame
-        if (state.destructionProgress < 2.5) {
-          lightningLines.forEach((line, idx) => {
-            const lineMat = line.material as THREE.LineBasicMaterial;
-            const flicker = Math.random() > 0.4;
-            lineMat.opacity = flicker ? 0.9 : 0;
-            if (flicker) {
-              const posAttr = line.geometry.attributes.position as THREE.BufferAttribute;
-              const posArray = posAttr.array as Float32Array;
-              const startX = -2.1 + (idx * 4.2) / lightningCount;
-              const startY = Math.sin(idx * 1.2) * 2.0;
-              const endX = startX + (Math.random() - 0.5) * 1.5;
-              const endY = startY + (Math.random() - 0.5) * 1.5;
-
-              for (let s = 0; s < lightningSegments; s++) {
-                const t = s / (lightningSegments - 1);
-                const jitter = (s === 0 || s === lightningSegments - 1) ? 0 : (Math.random() - 0.5) * 0.35;
-                posArray[s * 3] = THREE.MathUtils.lerp(startX, endX, t) + jitter;
-                posArray[s * 3 + 1] = THREE.MathUtils.lerp(startY, endY, t) + jitter;
-                posArray[s * 3 + 2] = 0.2 + (Math.random() - 0.5) * 0.2;
-              }
-              posAttr.needsUpdate = true;
-            }
-          });
-        } else {
-          lightningLines.forEach((line) => {
-            (line.material as THREE.LineBasicMaterial).opacity = 0;
-          });
-        }
-
-        // 6. Concussive Camera Earthquake Tremor (Multi-Axis Chaotic Shake)
-        if (state.shakeIntensity > 0.05) {
-          camera.position.x = (Math.random() - 0.5) * state.shakeIntensity * 0.45;
-          camera.position.y = (Math.random() - 0.5) * state.shakeIntensity * 0.45;
-          camera.position.z = 7.2 + (Math.random() - 0.5) * state.shakeIntensity * 0.3;
-          state.shakeIntensity *= 0.92;
+        // Camera concussive shudder (decays realistically in 0.4s)
+        if (state.shakeIntensity > 0.02) {
+          camera.position.x = (Math.random() - 0.5) * state.shakeIntensity * 0.18;
+          camera.position.y = (Math.random() - 0.5) * state.shakeIntensity * 0.18;
+          state.shakeIntensity *= 0.90;
         } else {
           camera.position.x = 0;
           camera.position.y = 0;
-          camera.position.z = 7.2;
         }
-      }
 
-      // 4. Update Bolts Radial Positions (in normal unlocked mode)
-      if (state.status !== 'destroyed') {
-        for (let i = 0; i < numBolts; i++) {
-          const angle = boltsData[i].baseAngle;
-          const dist = THREE.MathUtils.lerp(boltBaseDist, boltRetractedDist, state.boltsProgress);
-          boltsData[i].mesh.position.x = Math.cos(angle) * dist;
-          boltsData[i].mesh.position.y = Math.sin(angle) * dist;
-          boltsData[i].mesh.position.z = 0;
-          boltsData[i].mesh.rotation.set(0, 0, angle + Math.PI / 2);
+        // Realistic Slow Emergency Beacon Strobe (1.5 Hz slow facility breach beacon)
+        const beaconPulse = Math.sin(elapsed * 8) > 0.2;
+        const redHex = beaconPulse ? 0xff0000 : 0x220000;
+        ledMat.color.setHex(redHex);
+        bottomLedMat.color.setHex(redHex);
+        ledLight.color.setHex(0xff0000);
+        bottomLedLight.color.setHex(0xff0000);
+        ledLight.intensity = beaconPulse ? 7.0 : 0.3;
+        bottomLedLight.intensity = beaconPulse ? 7.0 : 0.3;
+
+        // Smoldering Breached Furnace Interior Heat Glow
+        breachHeatLight.intensity = 4.5 + Math.sin(elapsed * 3) * 1.5;
+
+        // Radial Bolts Forced Outward from Ruptured Sockets
+        bolts.forEach((b) => {
+          b.mesh.position.x += b.vel.x * delta;
+          b.mesh.position.y += b.vel.y * delta;
+          b.mesh.position.z += b.vel.z * delta;
+          b.vel.y -= 12.0 * delta; // Gravity
+          b.mesh.rotation.x += b.rotVel.x * delta;
+          b.mesh.rotation.y += b.rotVel.y * delta;
+        });
+
+        // Heavy Steel Door Warps and Drops onto Frame (Industrial mechanical failure)
+        // Instead of flying off like a toy, the heavy 10-ton door hinges crack:
+        // it thrusts forward by 0.4 units, drops down 0.5 units, and rests canted at a broken 20° tilt.
+        doorGroup.position.z = Math.min(0.55, doorGroup.position.z + delta * 1.8);
+        doorGroup.position.y = Math.max(-0.65, doorGroup.position.y - delta * 2.2);
+        doorGroup.rotation.x = Math.min(0.38, doorGroup.rotation.x + delta * 1.2);
+        doorGroup.rotation.z = Math.min(0.25, doorGroup.rotation.z + delta * 0.8);
+
+        // Sparks Arc Simulation
+        const sPos = sparkGeo.attributes.position.array as Float32Array;
+        for (let i = 0; i < sparkCount; i++) {
+          sPos[i * 3] += sparkVelocities[i * 3] * delta;
+          sPos[i * 3 + 1] += sparkVelocities[i * 3 + 1] * delta;
+          sPos[i * 3 + 2] += sparkVelocities[i * 3 + 2] * delta;
+          sparkVelocities[i * 3 + 1] -= 10.0 * delta; // Gravity
         }
-      }
+        sparkGeo.attributes.position.needsUpdate = true;
+        sparkMat.opacity = Math.max(0, 1.0 - state.destructionProgress * 0.4);
 
-      // 5. Update Door Hinge Swing Angle
-      if (state.status !== 'destroyed') {
-        hingeGroup.rotation.y = state.doorOpenAngle;
+        // Billowing Charcoal Smoke Convection
+        const smPos = smokeGeo.attributes.position.array as Float32Array;
+        for (let i = 0; i < smokeCount; i++) {
+          smPos[i * 3] += smokeVelocities[i * 3] * delta;
+          smPos[i * 3 + 1] += smokeVelocities[i * 3 + 1] * delta;
+          smPos[i * 3 + 2] += smokeVelocities[i * 3 + 2] * delta;
+          smokeVelocities[i * 3] *= 0.98;
+          smokeVelocities[i * 3 + 1] += 0.4 * delta; // Upward thermal plume
+        }
+        smokeGeo.attributes.position.needsUpdate = true;
+        smokeMat.opacity = Math.max(0, 0.85 - state.destructionProgress * 0.15);
       }
 
       renderer.render(scene, camera);
@@ -1057,7 +745,7 @@ export default function VaultDoor3D({
 
     animate();
 
-    // --- Resize Handler ---
+    // Resize Handler
     const handleResize = () => {
       if (!container) return;
       const w = container.clientWidth;

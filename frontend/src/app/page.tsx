@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useVault } from '@/context/VaultContext';
 import VaultDoorContainer from '@/components/vault3d/VaultDoorContainer';
@@ -53,17 +53,19 @@ export default function HomePage() {
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [isLockdown, setIsLockdown] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(30);
-  const [isBlastFlash, setIsBlastFlash] = useState(false);
-  const [isConcussiveShake, setIsConcussiveShake] = useState(false);
   const [isRepairing, setIsRepairing] = useState(false);
-  const [repairStep, setRepairStep] = useState(0);
 
-  // If already unlocked, redirect to vault
+  // IMPORTANT: Only redirect on initial page mount if already authenticated.
+  // During an active unlock sequence, we wait for the 3D door to swing wide open first!
+  const isInitialMountChecked = useRef(false);
   useEffect(() => {
-    if (isVaultUnlocked) {
-      router.push('/vault');
+    if (!isInitialMountChecked.current) {
+      isInitialMountChecked.current = true;
+      if (isVaultUnlocked && vaultStatus === 'idle') {
+        router.push('/vault');
+      }
     }
-  }, [isVaultUnlocked, router]);
+  }, [isVaultUnlocked, vaultStatus, router]);
 
   const toggleMute = () => {
     const next = !isMuted;
@@ -97,24 +99,18 @@ export default function HomePage() {
     return () => clearInterval(timer);
   }, [isLockdown, cooldownSeconds]);
 
-  // Trigger catastrophic blast effect
-  const triggerCatastrophicBlast = () => {
+  // Trigger realistic industrial breach
+  const triggerIndustrialBreach = () => {
     soundFX.selfDestruct();
     setVaultStatus('destroyed');
     setIsLockdown(true);
     setCooldownSeconds(30);
-    setIsBlastFlash(true);
-    setIsConcussiveShake(true);
-
-    setTimeout(() => setIsBlastFlash(false), 700);
-    setTimeout(() => setIsConcussiveShake(false), 900);
-
-    setLocalError('CRITICAL BREACH: 3/3 FAILED ATTEMPTS. VAULT HYDRAULICS DETONATED & DESTROYED.');
+    setLocalError('CRITICAL BREACH: 3/3 FAILED ATTEMPTS. HARDWARE INTERLOCK DETONATED.');
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLockdown) return;
+    if (isLockdown || vaultStatus === 'unlocking') return;
 
     clearError();
     setLocalError(null);
@@ -143,12 +139,17 @@ export default function HomePage() {
         await register(email, masterPassword, fullName);
       }
 
-      // --- SUCCESS: CORRECT PASSWORD ---
-      soundFX.accessGranted();
-      setTimeout(() => soundFX.mechanicalUnlock(), 850);
+      // --- SUCCESS: CORRECT PASSWORD ENTERED ---
+      // 1. Clear any prior failure count and errors immediately!
       setFailedAttempts(0);
+      setLocalError(null);
+      clearError();
 
-      // Trigger Green Light Blinking + Door Open sequence!
+      // 2. Play positive audio confirmation chimes
+      soundFX.accessGranted();
+      setTimeout(() => soundFX.mechanicalUnlock(), 1200);
+
+      // 3. Initiate the full 3D unlock & door-open animation sequence
       setVaultStatus('unlocking');
     } catch (err: any) {
       // --- FAILURE: WRONG PASSWORD ---
@@ -159,38 +160,35 @@ export default function HomePage() {
         soundFX.accessDenied();
         setVaultStatus('rejecting');
         setLocalError(
-          `Authentication Rejected! [Attempt ${nextFailures}/3]. WARNING: 3 consecutive failures will trigger Vault Self-Destruction.`
+          `Authentication Rejected! [Attempt ${nextFailures}/3]. WARNING: 3 consecutive failures will trigger Vault Destruction.`
         );
 
         setTimeout(() => {
           if (vaultStatus !== 'destroyed') {
             setVaultStatus('idle');
           }
-        }, 2500);
+        }, 2200);
       } else {
-        // --- 3RD FAILURE: SPECTACULAR VAULT BLAST & SELF-DESTRUCT ---
-        triggerCatastrophicBlast();
+        // --- 3RD FAILURE: REALISTIC INDUSTRIAL BREACH ---
+        triggerIndustrialBreach();
       }
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Called ONLY after the 3D door has finished its complete opening sequence:
   const handleUnlockSequenceComplete = () => {
     router.push('/vault');
   };
 
-  // Cinematic Reverse-Reconstruction & Repair Protocol
+  // Security Override & Repair Protocol
   const handleEmergencyReset = () => {
     if (isRepairing) return;
     setIsRepairing(true);
-    setRepairStep(1);
     soundFX.repairSequence();
 
-    const t1 = setTimeout(() => setRepairStep(2), 300);
-    const t2 = setTimeout(() => setRepairStep(3), 600);
-    const t3 = setTimeout(() => {
-      setRepairStep(4);
+    setTimeout(() => {
       setFailedAttempts(0);
       setIsLockdown(false);
       setCooldownSeconds(30);
@@ -198,36 +196,18 @@ export default function HomePage() {
       setLocalError(null);
       setMasterPassword('');
       setIsRepairing(false);
-    }, 1000);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
+    }, 900);
   };
 
   return (
-    <div
-      className={`min-h-screen bg-[#06090e] bg-cyber-grid text-slate-100 flex flex-col justify-between overflow-x-hidden selection:bg-cyan-500/30 selection:text-cyan-200 relative ${
-        isConcussiveShake ? 'animate-blast-impact' : ''
-      }`}
-    >
-      {/* Blinding Nuclear Screen Flash & Shockwave Vignette on Blast Detonation */}
-      {isBlastFlash && (
-        <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
-          <div className="absolute inset-0 bg-white/95 animate-[ping_0.6s_ease-out]" />
-          <div className="absolute inset-0 bg-gradient-radial from-transparent via-amber-600/40 to-rose-950/80" />
-        </div>
-      )}
-
+    <div className="min-h-screen bg-[#06090e] bg-cyber-grid text-slate-100 flex flex-col justify-between overflow-x-hidden selection:bg-cyan-500/30 selection:text-cyan-200 relative">
       {/* Ambient Lighting Orbs */}
       <div
         className={`absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full blur-[140px] pointer-events-none transition-colors duration-700 ${
           vaultStatus === 'destroyed'
-            ? 'bg-rose-600/45'
+            ? 'bg-rose-900/30'
             : vaultStatus === 'rejecting'
-            ? 'bg-rose-500/25'
+            ? 'bg-rose-500/20'
             : vaultStatus === 'unlocking'
             ? 'bg-emerald-500/25'
             : 'bg-cyan-500/10'
@@ -236,7 +216,7 @@ export default function HomePage() {
       <div
         className={`absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-96 h-96 rounded-full blur-[140px] pointer-events-none transition-colors duration-700 ${
           vaultStatus === 'destroyed'
-            ? 'bg-orange-600/45'
+            ? 'bg-amber-900/20'
             : vaultStatus === 'unlocking'
             ? 'bg-emerald-400/20'
             : 'bg-emerald-500/10'
@@ -247,19 +227,26 @@ export default function HomePage() {
       <div
         className={`w-full border-b px-6 py-1.5 flex items-center justify-between text-[11px] font-mono z-30 transition-colors duration-500 ${
           vaultStatus === 'destroyed'
-            ? 'bg-rose-950/95 border-rose-600 text-rose-300'
+            ? 'bg-rose-950/95 border-rose-800 text-rose-300'
+            : vaultStatus === 'unlocking'
+            ? 'bg-emerald-950/90 border-emerald-700 text-emerald-300'
             : 'bg-slate-950/90 border-slate-800/80 text-slate-400'
         }`}
       >
         <div className="flex items-center gap-3">
           {vaultStatus === 'destroyed' ? (
-            <span className="flex items-center gap-1.5 text-rose-400 font-bold animate-pulse">
-              <Flame className="w-3.5 h-3.5" />
-              STATUS: CATASTROPHIC BREACH // LOCKDOWN ACTIVE
+            <span className="flex items-center gap-1.5 text-rose-400 font-bold">
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+              STATUS: CATASTROPHIC BREACH // LOCKDOWN ENGAGED
+            </span>
+          ) : vaultStatus === 'unlocking' ? (
+            <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              AUTHENTICATED // ACCESS GRANTED
             </span>
           ) : (
             <span className="flex items-center gap-1.5 text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
               SYS_ONLINE
             </span>
           )}
@@ -281,26 +268,28 @@ export default function HomePage() {
             <span className="hidden sm:inline">{isMuted ? 'MUTED' : 'AUDIO ON'}</span>
           </button>
 
-          <div className="flex items-center gap-1 font-mono text-[10px]">
-            <span className="text-slate-500">DEFENSE:</span>
-            <div className="flex gap-1 ml-1">
-              {[1, 2, 3].map((step) => {
-                const filled = failedAttempts >= step;
-                return (
-                  <span
-                    key={step}
-                    className={`w-3.5 h-3.5 rounded flex items-center justify-center font-bold text-[9px] border transition-all ${
-                      filled
-                        ? 'bg-rose-600 text-white border-rose-500 animate-pulse'
-                        : 'bg-slate-900 text-slate-600 border-slate-800'
-                    }`}
-                  >
-                    {step}
-                  </span>
-                );
-              })}
+          {vaultStatus !== 'unlocking' && (
+            <div className="flex items-center gap-1 font-mono text-[10px]">
+              <span className="text-slate-500">DEFENSE:</span>
+              <div className="flex gap-1 ml-1">
+                {[1, 2, 3].map((step) => {
+                  const filled = failedAttempts >= step;
+                  return (
+                    <span
+                      key={step}
+                      className={`w-3.5 h-3.5 rounded flex items-center justify-center font-bold text-[9px] border transition-all ${
+                        filled
+                          ? 'bg-rose-600 text-white border-rose-500'
+                          : 'bg-slate-900 text-slate-600 border-slate-800'
+                      }`}
+                    >
+                      {step}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -343,11 +332,11 @@ export default function HomePage() {
           <div
             className={`absolute w-[380px] h-[380px] sm:w-[480px] sm:h-[480px] blur-2xl pointer-events-none rounded-full transition-all duration-700 ${
               vaultStatus === 'destroyed'
-                ? 'bg-rose-600/50 scale-125'
+                ? 'bg-rose-950/40 scale-110'
                 : vaultStatus === 'rejecting'
-                ? 'bg-rose-500/30'
+                ? 'bg-rose-500/25'
                 : vaultStatus === 'unlocking'
-                ? 'bg-emerald-500/30 scale-105'
+                ? 'bg-emerald-500/30 scale-110'
                 : 'bg-gradient-to-tr from-cyan-500/15 via-emerald-500/10 to-transparent'
             }`}
           />
@@ -367,11 +356,11 @@ export default function HomePage() {
             <div
               className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-xs font-mono backdrop-blur-md shadow-lg transition-all ${
                 vaultStatus === 'destroyed'
-                  ? 'bg-rose-950/95 border-rose-500 text-rose-300 font-bold animate-pulse shadow-rose-900/50'
+                  ? 'bg-rose-950/90 border-rose-600 text-rose-300 font-bold'
                   : vaultStatus === 'rejecting'
                   ? 'bg-rose-950/90 border-rose-500 text-rose-400 font-bold animate-shake'
                   : vaultStatus === 'unlocking'
-                  ? 'bg-emerald-950/90 border-emerald-400 text-emerald-300 font-bold'
+                  ? 'bg-emerald-950/90 border-emerald-400 text-emerald-300 font-bold shadow-emerald-900/40'
                   : 'bg-slate-950/80 border-slate-800 text-slate-400'
               }`}
             >
@@ -383,20 +372,20 @@ export default function HomePage() {
               )}
               {vaultStatus === 'rejecting' && (
                 <span className="text-rose-400 flex items-center gap-1.5 font-bold">
-                  <AlertTriangle className="w-4 h-4 animate-ping" />
+                  <AlertTriangle className="w-4 h-4 text-rose-400" />
                   RED LIGHT BLINKING // ACCESS DENIED // ATTEMPTS: {failedAttempts}/3
                 </span>
               )}
               {vaultStatus === 'unlocking' && (
                 <span className="text-emerald-300 flex items-center gap-1.5 font-bold animate-pulse">
-                  <CheckCircle2 className="w-4 h-4" />
-                  GREEN LIGHT CONFIRMED • BOLTS RETRACTED • DOOR OPENING...
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  GREEN LIGHT CONFIRMED • BOLTS RETRACTING • DOOR OPENING...
                 </span>
               )}
               {vaultStatus === 'destroyed' && (
                 <span className="text-rose-300 flex items-center gap-1.5 font-bold">
-                  <Bomb className="w-4 h-4 animate-bounce" />
-                  3 CONSECUTIVE FAILURES • VAULT BLAST DETONATED // EMERGENCY LOCKDOWN
+                  <ShieldAlert className="w-4 h-4 text-rose-400" />
+                  HARDWARE COMPROMISED • VAULT BREACHED // SYSTEM PURGED
                 </span>
               )}
               {vaultStatus === 'idle' && (
@@ -413,14 +402,20 @@ export default function HomePage() {
         <div className="lg:col-span-5 flex justify-center">
           <div
             className={`w-full max-w-md vault-panel tactical-bracket rounded-2xl p-6 sm:p-8 relative overflow-hidden transition-all duration-500 ${
-              isLockdown ? 'border-rose-600 shadow-[0_0_70px_rgba(244,63,94,0.45)]' : ''
+              isLockdown
+                ? 'border-rose-600 shadow-[0_0_50px_rgba(244,63,94,0.3)]'
+                : vaultStatus === 'unlocking'
+                ? 'border-emerald-500/80 shadow-[0_0_50px_rgba(16,185,129,0.3)]'
+                : ''
             }`}
           >
             {/* Top Glowing Accent Line */}
             <div
               className={`absolute top-0 left-0 right-0 h-1.5 transition-colors duration-500 ${
                 isLockdown
-                  ? 'bg-rose-600 glow-rose animate-pulse'
+                  ? 'bg-rose-600'
+                  : vaultStatus === 'unlocking'
+                  ? 'bg-emerald-400 glow-emerald'
                   : 'bg-gradient-to-r from-cyan-500 via-emerald-400 to-cyan-500 glow-cyan'
               }`}
             />
@@ -429,7 +424,7 @@ export default function HomePage() {
             <div className="flex rounded-xl bg-slate-950/80 p-1 border border-slate-800/80 mb-6 shadow-inner">
               <button
                 type="button"
-                disabled={isLockdown}
+                disabled={isLockdown || vaultStatus === 'unlocking'}
                 onClick={() => {
                   setActiveTab('login');
                   clearError();
@@ -445,7 +440,7 @@ export default function HomePage() {
               </button>
               <button
                 type="button"
-                disabled={isLockdown}
+                disabled={isLockdown || vaultStatus === 'unlocking'}
                 onClick={() => {
                   setActiveTab('register');
                   clearError();
@@ -462,11 +457,11 @@ export default function HomePage() {
             </div>
 
             {/* Error / Alert Banner */}
-            {(error || localError) && (
+            {(error || localError) && vaultStatus !== 'unlocking' && (
               <div
                 className={`mb-4 p-3.5 rounded-xl border text-xs flex items-start gap-2.5 ${
                   vaultStatus === 'destroyed'
-                    ? 'bg-rose-950/80 border-rose-600 text-rose-200 font-bold animate-pulse'
+                    ? 'bg-rose-950/80 border-rose-600 text-rose-200 font-bold'
                     : 'bg-rose-500/10 border-rose-500/30 text-rose-400 animate-shake'
                 }`}
               >
@@ -475,42 +470,60 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* LOCKDOWN VIEW (Shown when Vault is Destroyed on 3rd Failed Attempt) */}
-            {isLockdown ? (
+            {/* UNLOCKING SUCCESS VIEW (Visible while the 3D door is opening) */}
+            {vaultStatus === 'unlocking' ? (
+              <div className="py-6 text-center space-y-4 animate-in fade-in duration-300 font-mono">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border-2 border-emerald-400/50 flex items-center justify-center text-emerald-400 mx-auto shadow-[0_0_30px_rgba(16,185,129,0.3)]">
+                  <CheckCircle2 className="w-7 h-7" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-emerald-400 tracking-wider uppercase">
+                    CREDENTIAL CONFIRMED
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Disengaging radial locking bolts and swinging heavy steel door open...
+                  </p>
+                </div>
+                <div className="p-3 bg-slate-950 border border-emerald-900/60 rounded-xl text-[11px] text-slate-400 space-y-1 text-left">
+                  <div className="flex justify-between text-emerald-400 font-bold">
+                    <span>SECURITY ENCLAVE:</span>
+                    <span>DECRYPTED</span>
+                  </div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>3D VAULT MECHANISM:</span>
+                    <span className="text-emerald-300">OPENING DOOR</span>
+                  </div>
+                </div>
+              </div>
+            ) : isLockdown ? (
+              /* LOCKDOWN VIEW (Shown when Vault is Destroyed on 3rd Failed Attempt) */
               <div className="py-2 text-center space-y-4 animate-in fade-in duration-300">
-                {/* Warning Hazard Ribbon */}
-                <div className="w-full h-3 rounded-full bg-hazard-stripes border border-rose-600/50 mb-1" />
-
-                <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border-2 border-rose-500/50 flex items-center justify-center text-rose-500 mx-auto animate-bounce shadow-[0_0_35px_rgba(244,63,94,0.4)]">
-                  <ShieldAlert className="w-8 h-8" />
+                <div className="w-14 h-14 rounded-2xl bg-rose-950/60 border-2 border-rose-600 flex items-center justify-center text-rose-400 mx-auto shadow-[0_0_25px_rgba(244,63,94,0.3)]">
+                  <ShieldAlert className="w-7 h-7" />
                 </div>
 
                 <div className="space-y-1">
-                  <h3 className="text-base font-extrabold text-rose-400 font-mono tracking-wider uppercase">
-                    CATASTROPHIC VAULT BLAST // LOCKDOWN
+                  <h3 className="text-sm font-extrabold text-rose-400 font-mono tracking-wider uppercase">
+                    CRITICAL BREACH // HARDWARE LOCKDOWN
                   </h3>
-                  <p className="text-xs text-slate-300 font-mono">
-                    3 consecutive invalid password attempts detected. The radial locking pins have detonated, hinges sheared, and cryptographic keys zeroized.
+                  <p className="text-xs text-slate-400 font-mono">
+                    3 consecutive invalid authentication attempts detected. Mechanical security interlocks have severed and zero-knowledge cryptographic keys have been purged from memory.
                   </p>
                 </div>
 
                 {/* Diagnostics Damage Telemetry Box */}
-                <div className="p-3 bg-slate-950/95 border border-rose-900/80 rounded-xl text-[10px] font-mono text-left space-y-1.5 text-slate-400 shadow-inner">
+                <div className="p-3 bg-slate-950 border border-stone-800 rounded-xl text-[10px] font-mono text-left space-y-1.5 text-slate-400">
                   <div className="flex justify-between text-rose-400 font-bold">
                     <span>STRUCTURAL INTEGRITY:</span>
-                    <span>0% [CATASTROPHIC BREACH]</span>
+                    <span>0% [BREACHED]</span>
                   </div>
                   <div className="flex justify-between text-slate-500">
                     <span>RADIAL LOCK BOLTS:</span>
-                    <span className="text-rose-400 font-bold">8x BALLISTICALLY EJECTED</span>
-                  </div>
-                  <div className="flex justify-between text-slate-500">
-                    <span>TURNING HELM:</span>
-                    <span className="text-rose-400 font-bold">SHATTERED (3 FRAGMENTS)</span>
+                    <span className="text-rose-400 font-bold">SHEARED & DISLODGED</span>
                   </div>
                   <div className="flex justify-between text-slate-500">
                     <span>CIPHER ENCLAVE RAM:</span>
-                    <span className="text-emerald-400 font-bold">PURGED (0 BYTES RETAINED)</span>
+                    <span className="text-emerald-400 font-bold">PURGED (0 BYTES)</span>
                   </div>
                   <div className="flex justify-between text-slate-500">
                     <span>SECURITY COOLDOWN:</span>
@@ -520,29 +533,15 @@ export default function HomePage() {
 
                 {/* Repair Status or Action Button */}
                 {isRepairing ? (
-                  <div className="p-4 rounded-xl bg-cyan-950/50 border border-cyan-500/40 text-left font-mono text-[11px] space-y-1.5 animate-pulse">
-                    <div className="flex items-center gap-2 text-cyan-400 font-bold">
-                      <Wrench className="w-4 h-4 animate-spin text-cyan-400" />
-                      <span>EXECUTING NANO-RECONSTRUCTION PROTOCOL...</span>
-                    </div>
-                    <div className="text-slate-400 text-[10px]">
-                      {repairStep === 1 && '▶ Phase 1: Re-aligning sheared titanium door bulkhead...'}
-                      {repairStep === 2 && '▶ Phase 2: Seating radial chrome bolts into frame notches...'}
-                      {repairStep === 3 && '▶ Phase 3: Pressurizing hydraulic seals & recalibrating dial...'}
-                      {repairStep === 4 && '✔ Phase 4: Enclave restored to pristine security state.'}
-                    </div>
-                    <div className="w-full bg-slate-900 rounded-full h-1.5 mt-2 overflow-hidden">
-                      <div
-                        className="bg-cyan-400 h-full transition-all duration-300"
-                        style={{ width: `${(repairStep / 4) * 100}%` }}
-                      />
-                    </div>
+                  <div className="p-3.5 rounded-xl bg-cyan-950/40 border border-cyan-500/40 text-left font-mono text-[11px] flex items-center gap-2.5 text-cyan-300">
+                    <Wrench className="w-4 h-4 animate-spin text-cyan-400 shrink-0" />
+                    <span>Recalibrating locking bolts & restoring enclave...</span>
                   </div>
                 ) : (
                   <button
                     type="button"
                     onClick={handleEmergencyReset}
-                    className="w-full py-3 px-4 rounded-xl font-bold text-xs tracking-wider uppercase bg-gradient-to-r from-rose-600 via-amber-600 to-rose-600 hover:from-rose-500 hover:to-amber-500 text-white shadow-xl shadow-rose-950/60 transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95"
+                    className="w-full py-3 px-4 rounded-xl font-bold text-xs tracking-wider uppercase bg-gradient-to-r from-rose-700 via-stone-800 to-rose-700 hover:from-rose-600 hover:to-stone-700 text-white shadow-lg transition-all flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-98"
                   >
                     <RotateCcw className="w-4 h-4" />
                     <span>Execute Security Override & Repair Vault</span>
@@ -620,7 +619,7 @@ export default function HomePage() {
                           ? 'text-slate-500'
                           : failedAttempts === 1
                           ? 'text-amber-400'
-                          : 'text-rose-400 font-bold animate-pulse'
+                          : 'text-rose-400 font-bold'
                       }`}
                     >
                       Failures: {failedAttempts}/3
@@ -649,11 +648,11 @@ export default function HomePage() {
 
                 <button
                   type="submit"
-                  disabled={isSubmitting || vaultStatus === 'unlocking'}
+                  disabled={isSubmitting}
                   className="w-full mt-3 py-3 px-4 rounded-xl font-bold text-xs tracking-wider uppercase transition-all duration-200 flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 via-emerald-400 to-cyan-500 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 shadow-lg shadow-cyan-500/25 active:scale-[0.98] disabled:opacity-50"
                 >
                   {isSubmitting ? (
-                    <span className="font-mono text-xs">DERIVING KEY & AUTHENTICATING...</span>
+                    <span className="font-mono text-xs">VERIFYING MASTER KEY...</span>
                   ) : (
                     <>
                       <span>{activeTab === 'login' ? 'Disengage Locks & Enter Vault' : 'Initialize Encrypted Vault'}</span>
@@ -664,7 +663,7 @@ export default function HomePage() {
               </form>
             )}
 
-            {/* Quick Demo Credentials & Blast Simulation Controls */}
+            {/* Quick Demo Credentials & Testing Controls */}
             {!isLockdown && (
               <div className="mt-6 pt-4 border-t border-slate-800 text-[11px] font-mono text-slate-400 space-y-2">
                 <div className="flex items-center justify-between mb-1">
@@ -695,16 +694,16 @@ export default function HomePage() {
                   </button>
                 </div>
 
-                {/* Instant Blast Trigger for Quick Testing */}
+                {/* Instant Breach Trigger for Quick Testing */}
                 <div className="pt-1 flex items-center justify-between text-[10px]">
-                  <span className="text-slate-500">Demo Blast Effect:</span>
+                  <span className="text-slate-500">Test 3-Failure Breach:</span>
                   <button
                     type="button"
-                    onClick={triggerCatastrophicBlast}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-mono transition-all hover:scale-105"
+                    onClick={triggerIndustrialBreach}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-stone-900 hover:bg-stone-800 border border-stone-700 text-stone-300 font-mono transition-all"
                   >
                     <Bomb className="w-3 h-3 text-rose-400" />
-                    <span>Instant Blast Demo</span>
+                    <span>Simulate 3rd Failure</span>
                   </button>
                 </div>
               </div>

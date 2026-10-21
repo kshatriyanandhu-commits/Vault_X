@@ -30,23 +30,11 @@
   }
 }
 
-/* Cyber & Machined Steel Animations */
+/* Subtle Tactical Door Mechanical Rattle on Access Denied */
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
-  15%, 45%, 75% { transform: translateX(-10px); }
-  30%, 60%, 90% { transform: translateX(10px); }
-}
-
-/* Concussive Full-Screen Blast Impact Tremor */
-@keyframes blastConcussiveShake {
-  0% { transform: translate(0, 0) scale(1); filter: brightness(2.2); }
-  10% { transform: translate(-14px, 12px) scale(1.02); filter: brightness(1.8); }
-  20% { transform: translate(16px, -14px) scale(0.99); filter: brightness(1.5); }
-  30% { transform: translate(-12px, -10px) scale(1.01); filter: brightness(1.3); }
-  45% { transform: translate(10px, 8px) scale(1); filter: brightness(1.15); }
-  60% { transform: translate(-6px, 4px) scale(1); filter: brightness(1.05); }
-  75% { transform: translate(4px, -3px) scale(1); filter: brightness(1.0); }
-  100% { transform: translate(0, 0) scale(1); filter: brightness(1.0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
 }
 
 @keyframes pulseGlow {
@@ -59,45 +47,12 @@
   100% { transform: translateY(1000%); }
 }
 
-@keyframes glitchFlicker {
-  0%, 100% { opacity: 1; transform: translate(0); }
-  20% { opacity: 0.85; transform: translate(-2px, 1px); }
-  40% { opacity: 0.95; transform: translate(2px, -1px); }
-  60% { opacity: 0.9; transform: translate(-1px, 2px); }
-  80% { opacity: 0.88; transform: translate(1px, -2px); }
-}
-
-@keyframes hazardStripes {
-  0% { background-position: 0 0; }
-  100% { background-position: 40px 0; }
-}
-
 .animate-shake {
-  animation: shake 0.5s ease-in-out;
-}
-
-.animate-blast-impact {
-  animation: blastConcussiveShake 0.9s cubic-bezier(0.25, 1, 0.5, 1);
-}
-
-.animate-glitch {
-  animation: glitchFlicker 0.3s ease infinite;
+  animation: shake 0.4s ease-in-out;
 }
 
 .animate-pulse-glow {
   animation: pulseGlow 4s ease-in-out infinite;
-}
-
-.bg-hazard-stripes {
-  background: repeating-linear-gradient(
-    -45deg,
-    rgba(225, 29, 72, 0.25),
-    rgba(225, 29, 72, 0.25) 12px,
-    rgba(15, 23, 42, 0.6) 12px,
-    rgba(15, 23, 42, 0.6) 24px
-  );
-  background-size: 40px 40px;
-  animation: hazardStripes 2s linear infinite;
 }
 
 /* Tactical Background Grid & Dot Patterns */
@@ -136,10 +91,6 @@
 
 .glow-purple {
   box-shadow: 0 0 20px -3px rgba(172, 75, 255, 0.4);
-}
-
-.glow-rose {
-  box-shadow: 0 0 25px -2px rgba(244, 63, 94, 0.55);
 }
 
 /* Tactical Corner Brackets */
