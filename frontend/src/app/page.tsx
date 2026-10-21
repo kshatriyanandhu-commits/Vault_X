@@ -199,6 +199,36 @@ export default function HomePage() {
     }, 900);
   };
 
+  // Dedicated Autofill Handler with Auto-Submit option
+  const handleAutofillAdmin = async (autoSubmit: boolean = false) => {
+    setActiveTab('login');
+    setEmail('admin@argusvault.local');
+    setMasterPassword('ArgusAdmin2026!Secure');
+    setConfirmPassword('ArgusAdmin2026!Secure');
+    setTypingCount((c) => c + 15);
+    clearError();
+    setLocalError(null);
+    setFailedAttempts(0);
+    setIsLockdown(false);
+    setVaultStatus('idle');
+    soundFX.tick();
+
+    if (autoSubmit) {
+      setIsSubmitting(true);
+      try {
+        await login('admin@argusvault.local', 'ArgusAdmin2026!Secure');
+        soundFX.accessGranted();
+        setTimeout(() => soundFX.mechanicalUnlock(), 1200);
+        setVaultStatus('unlocking');
+      } catch (err: any) {
+        setLocalError(err.message || 'Login failed');
+        setVaultStatus('rejecting');
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#06090e] bg-cyber-grid text-slate-100 flex flex-col justify-between overflow-x-hidden selection:bg-cyan-500/30 selection:text-cyan-200 relative">
       {/* Ambient Lighting Orbs */}
@@ -675,23 +705,30 @@ export default function HomePage() {
                     READY
                   </span>
                 </div>
-                <div className="bg-slate-950/90 p-3 rounded-xl border border-slate-800/90 flex items-center justify-between shadow-inner">
+                <div className="bg-slate-950/90 p-3 rounded-xl border border-slate-800/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-inner">
                   <div>
-                    <div className="text-slate-200 font-semibold">admin@argusvault.local</div>
-                    <div className="text-slate-500">ArgusAdmin2026!Secure</div>
+                    <div className="text-slate-200 font-semibold text-xs">admin@argusvault.local</div>
+                    <div className="text-slate-500 text-[11px] font-mono">ArgusAdmin2026!Secure</div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('admin@argusvault.local');
-                      setMasterPassword('ArgusAdmin2026!Secure');
-                      setTypingCount((c) => c + 10);
-                      soundFX.tick();
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold transition-all hover:scale-105 active:scale-95"
-                  >
-                    Autofill
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleAutofillAdmin(false)}
+                      className="px-2.5 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold transition-all hover:scale-105 active:scale-95"
+                      title="Fill email and password into form"
+                    >
+                      Fill Form
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAutofillAdmin(true)}
+                      className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500/30 to-cyan-500/30 hover:from-emerald-500/40 hover:to-cyan-500/40 border border-emerald-500/50 text-emerald-300 text-[11px] font-bold transition-all hover:scale-105 active:scale-95 flex items-center gap-1 shadow-sm shadow-emerald-500/10"
+                      title="Autofill and immediately initiate 3D vault unlock"
+                    >
+                      <Zap className="w-3 h-3 text-emerald-400" />
+                      <span>Quick Unlock</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Instant Breach Trigger for Quick Testing */}

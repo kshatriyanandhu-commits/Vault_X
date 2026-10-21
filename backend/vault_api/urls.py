@@ -13,6 +13,7 @@ from .views import (
 )
 
 router = DefaultRouter()
+router.trailing_slash = '/?'
 router.register(r'credentials', EncryptedCredentialViewSet, basename='credential')
 
 urlpatterns = [
