@@ -4,6 +4,7 @@
   "description": "Zero-Knowledge Interactive 3D Credential Vault & Admin Session Console",
   "private": true,
   "scripts": {
+    "build": "npm run build --prefix frontend",
     "dev:frontend": "npm run dev --prefix frontend",
     "dev:backend": "powershell -ExecutionPolicy Bypass -Command \"cd backend; .\\venv\\Scripts\\python.exe manage.py runserver 127.0.0.1:8000\"",
     "build:frontend": "npm run build --prefix frontend",
