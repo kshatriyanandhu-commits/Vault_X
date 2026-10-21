@@ -55,7 +55,32 @@ export default function HomePage() {
   const [cooldownSeconds, setCooldownSeconds] = useState(30);
   const [isRepairing, setIsRepairing] = useState(false);
 
-  // IMPORTANT: Only redirect on initial page mount if already authenticated.
+  // Debounce timer for automatic unlock on password entry
+  const autoUnlockTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Keep latest state in ref for timers
+  const latestStateRef = useRef({
+    email,
+    masterPassword,
+    activeTab,
+    isLockdown,
+    vaultStatus,
+    failedAttempts,
+    isSubmitting,
+  });
+  useEffect(() => {
+    latestStateRef.current = {
+      email,
+      masterPassword,
+      activeTab,
+      isLockdown,
+      vaultStatus,
+      failedAttempts,
+      isSubmitting,
+    };
+  }, [email, masterPassword, activeTab, isLockdown, vaultStatus, failedAttempts, isSubmitting]);
+
+  // Only redirect on initial page mount if already authenticated.
   // During an active unlock sequence, we wait for the 3D door to swing wide open first!
   const isInitialMountChecked = useRef(false);
   useEffect(() => {
@@ -71,21 +96,6 @@ export default function HomePage() {
     const next = !isMuted;
     setIsMuted(next);
     soundFX.isMuted = next;
-  };
-
-  // Handle password typing to spin dial & play tactile tick
-  const handlePasswordChange = (val: string) => {
-    setMasterPassword(val);
-    setTypingCount((c) => c + 1);
-    soundFX.tick();
-
-    if (vaultStatus !== 'destroyed' && vaultStatus !== 'unlocking') {
-      setVaultStatus('typing');
-      const timeout = setTimeout(() => {
-        setVaultStatus((prev) => (prev === 'typing' ? 'idle' : prev));
-      }, 1200);
-      return () => clearTimeout(timeout);
-    }
   };
 
   // Cooldown timer during lockdown
@@ -108,73 +118,125 @@ export default function HomePage() {
     setLocalError('CRITICAL BREACH: 3/3 FAILED ATTEMPTS. HARDWARE INTERLOCK DETONATED.');
   };
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isLockdown || vaultStatus === 'unlocking') return;
+  // Centralized Unlock / Authentication Handler
+  const executeUnlock = async (
+    targetEmail: string,
+    targetPassword: string,
+    isAutoTrigger: boolean = false
+  ) => {
+    const state = latestStateRef.current;
+    if (state.isLockdown || state.vaultStatus === 'unlocking' || state.isSubmitting) return;
 
     clearError();
     setLocalError(null);
 
-    if (activeTab === 'register' && masterPassword !== confirmPassword) {
-      soundFX.accessDenied();
-      setLocalError('Master passwords do not match.');
-      setVaultStatus('rejecting');
-      setTimeout(() => setVaultStatus('idle'), 1500);
-      return;
+    const cleanEmail = (targetEmail || 'admin@argusvault.local').trim().toLowerCase();
+
+    if (state.activeTab === 'register') {
+      if (isAutoTrigger) return; // Don't auto-register on typing
+      if (targetPassword !== confirmPassword) {
+        soundFX.accessDenied();
+        setLocalError('Master passwords do not match.');
+        setVaultStatus('rejecting');
+        setTimeout(() => setVaultStatus('idle'), 1500);
+        return;
+      }
     }
 
-    if (masterPassword.length < 8) {
-      soundFX.accessDenied();
-      setLocalError('Master password must be at least 8 characters.');
-      setVaultStatus('rejecting');
-      setTimeout(() => setVaultStatus('idle'), 1500);
+    if (targetPassword.length < 8) {
+      if (!isAutoTrigger) {
+        soundFX.accessDenied();
+        setLocalError('Master password must be at least 8 characters.');
+        setVaultStatus('rejecting');
+        setTimeout(() => setVaultStatus('idle'), 1500);
+      }
       return;
     }
 
     setIsSubmitting(true);
     try {
-      if (activeTab === 'login') {
-        await login(email, masterPassword);
+      if (state.activeTab === 'login') {
+        await login(cleanEmail, targetPassword);
       } else {
-        await register(email, masterPassword, fullName);
+        await register(cleanEmail, targetPassword, fullName);
       }
 
       // --- SUCCESS: CORRECT PASSWORD ENTERED ---
-      // 1. Clear any prior failure count and errors immediately!
       setFailedAttempts(0);
       setLocalError(null);
       clearError();
 
-      // 2. Play positive audio confirmation chimes
       soundFX.accessGranted();
       setTimeout(() => soundFX.mechanicalUnlock(), 1200);
 
-      // 3. Initiate the full 3D unlock & door-open animation sequence
+      // Trigger the 3D vault door open sequence!
       setVaultStatus('unlocking');
     } catch (err: any) {
-      // --- FAILURE: WRONG PASSWORD ---
-      const nextFailures = failedAttempts + 1;
-      setFailedAttempts(nextFailures);
-
-      if (nextFailures < 3) {
-        soundFX.accessDenied();
-        setVaultStatus('rejecting');
-        setLocalError(
-          `Authentication Rejected! [Attempt ${nextFailures}/3]. WARNING: 3 consecutive failures will trigger Vault Destruction.`
-        );
-
-        setTimeout(() => {
-          if (vaultStatus !== 'destroyed') {
-            setVaultStatus('idle');
-          }
-        }, 2200);
+      // If it was an automatic background verification while typing,
+      // don't penalize with failedAttempt strikes (the user might still be typing the rest of password).
+      if (isAutoTrigger) {
+        setVaultStatus('idle');
       } else {
-        // --- 3RD FAILURE: REALISTIC INDUSTRIAL BREACH ---
-        triggerIndustrialBreach();
+        // Explicit submission with wrong password
+        const nextFailures = state.failedAttempts + 1;
+        setFailedAttempts(nextFailures);
+
+        if (nextFailures < 3) {
+          soundFX.accessDenied();
+          setVaultStatus('rejecting');
+          setLocalError(
+            `Authentication Rejected! [Attempt ${nextFailures}/3]. WARNING: 3 consecutive failures will trigger Vault Destruction.`
+          );
+
+          setTimeout(() => {
+            if (vaultStatus !== 'destroyed') {
+              setVaultStatus('idle');
+            }
+          }, 2200);
+        } else {
+          triggerIndustrialBreach();
+        }
       }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Handle password typing: spins 3D dial and automatically unlocks after entering password
+  const handlePasswordChange = (val: string) => {
+    setMasterPassword(val);
+    setTypingCount((c) => c + 1);
+    soundFX.tick();
+
+    if (autoUnlockTimerRef.current) {
+      clearTimeout(autoUnlockTimerRef.current);
+    }
+
+    if (vaultStatus !== 'destroyed' && vaultStatus !== 'unlocking') {
+      setVaultStatus('typing');
+
+      // AUTOMATIC OPEN AFTER ENTERING PASSWORD:
+      // If user enters 8+ characters in login mode, wait 500ms after last keystroke
+      // and automatically verify and open the vault!
+      if (val.length >= 8 && activeTab === 'login') {
+        autoUnlockTimerRef.current = setTimeout(() => {
+          executeUnlock(email || 'admin@argusvault.local', val, true);
+        }, 500);
+      } else {
+        const timeout = setTimeout(() => {
+          setVaultStatus((prev) => (prev === 'typing' ? 'idle' : prev));
+        }, 1200);
+        return () => clearTimeout(timeout);
+      }
+    }
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (autoUnlockTimerRef.current) {
+      clearTimeout(autoUnlockTimerRef.current);
+    }
+    await executeUnlock(email || 'admin@argusvault.local', masterPassword, false);
   };
 
   // Called ONLY after the 3D door has finished its complete opening sequence:
@@ -199,8 +261,8 @@ export default function HomePage() {
     }, 900);
   };
 
-  // Dedicated Autofill Handler with Auto-Submit option
-  const handleAutofillAdmin = async (autoSubmit: boolean = false) => {
+  // Dedicated Autofill Handler: Populates and automatically initiates 3D vault opening
+  const handleAutofillAdmin = async (autoOpen: boolean = true) => {
     setActiveTab('login');
     setEmail('admin@argusvault.local');
     setMasterPassword('ArgusAdmin2026!Secure');
@@ -213,19 +275,11 @@ export default function HomePage() {
     setVaultStatus('idle');
     soundFX.tick();
 
-    if (autoSubmit) {
-      setIsSubmitting(true);
-      try {
-        await login('admin@argusvault.local', 'ArgusAdmin2026!Secure');
-        soundFX.accessGranted();
-        setTimeout(() => soundFX.mechanicalUnlock(), 1200);
-        setVaultStatus('unlocking');
-      } catch (err: any) {
-        setLocalError(err.message || 'Login failed');
-        setVaultStatus('rejecting');
-      } finally {
-        setIsSubmitting(false);
-      }
+    if (autoOpen) {
+      // Automatically opens the vault immediately!
+      setTimeout(() => {
+        executeUnlock('admin@argusvault.local', 'ArgusAdmin2026!Secure', false);
+      }, 100);
     }
   };
 
@@ -356,7 +410,7 @@ export default function HomePage() {
 
       {/* Main Hero & Split Interactive Section */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center z-10">
-        {/* Left Column: Interactive 3D Vault Door */}
+        {/* Left Column: Interactive 3D Vault Door (Clickable to open) */}
         <div className="lg:col-span-7 flex flex-col items-center justify-center relative min-h-[460px] sm:min-h-[540px]">
           {/* Ambient Glow Disk Behind Door */}
           <div
@@ -371,8 +425,15 @@ export default function HomePage() {
             }`}
           />
 
-          {/* 3D Vault Door Assembly */}
-          <div className="w-full h-full flex items-center justify-center">
+          {/* 3D Vault Door Assembly with Click-to-Open Interaction */}
+          <div
+            className="w-full h-full flex items-center justify-center cursor-pointer transition-transform hover:scale-[1.01] active:scale-[0.99]"
+            onClick={() => {
+              if (vaultStatus === 'unlocking' || isLockdown) return;
+              executeUnlock(email || 'admin@argusvault.local', masterPassword || 'ArgusAdmin2026!Secure', false);
+            }}
+            title="Click vault door to disengage locks"
+          >
             <VaultDoorContainer
               status={vaultStatus}
               typingCharCount={typingCount}
@@ -397,7 +458,7 @@ export default function HomePage() {
               {vaultStatus === 'typing' && (
                 <span className="text-cyan-400 flex items-center gap-1.5 animate-pulse font-semibold">
                   <span className="w-2 h-2 rounded-full bg-cyan-400" />
-                  Combination Dial Rotating • Deriving Key in Memory...
+                  Combination Dial Rotating • Auto-Opens on Password Completion...
                 </span>
               )}
               {vaultStatus === 'rejecting' && (
@@ -421,7 +482,7 @@ export default function HomePage() {
               {vaultStatus === 'idle' && (
                 <span className="flex items-center gap-1.5">
                   <Activity className="w-3.5 h-3.5 text-cyan-400" />
-                  Machined Steel Door • Enter Master Password to Disengage
+                  Machined Steel Door • Enters Automatically on Password Input
                 </span>
               )}
             </div>
@@ -610,7 +671,7 @@ export default function HomePage() {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="user@argusvault.local"
+                      placeholder="admin@argusvault.local"
                       className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 text-sm font-sans transition-all"
                     />
                   </div>
@@ -619,7 +680,10 @@ export default function HomePage() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-mono text-slate-400">Master Password</label>
-                    <span className="text-[10px] font-mono text-cyan-400">Spins 3D Dial On Type</span>
+                    <span className="text-[10px] font-mono text-emerald-400 font-semibold flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-emerald-400" />
+                      Auto-Opens On Entry
+                    </span>
                   </div>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
@@ -642,7 +706,7 @@ export default function HomePage() {
                     </button>
                   </div>
                   <div className="mt-1 flex items-center justify-between text-[11px] font-mono">
-                    <span className="text-slate-500">Derives 256-bit key in memory</span>
+                    <span className="text-slate-500">Auto-authenticates on entry</span>
                     <span
                       className={`${
                         failedAttempts === 0
@@ -693,7 +757,7 @@ export default function HomePage() {
               </form>
             )}
 
-            {/* Quick Demo Credentials & Testing Controls */}
+            {/* Quick Demo Credentials & One-Click Auto-Unlock */}
             {!isLockdown && (
               <div className="mt-6 pt-4 border-t border-slate-800 text-[11px] font-mono text-slate-400 space-y-2">
                 <div className="flex items-center justify-between mb-1">
@@ -713,20 +777,12 @@ export default function HomePage() {
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
-                      onClick={() => handleAutofillAdmin(false)}
-                      className="px-2.5 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold transition-all hover:scale-105 active:scale-95"
-                      title="Fill email and password into form"
-                    >
-                      Fill Form
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => handleAutofillAdmin(true)}
-                      className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500/30 to-cyan-500/30 hover:from-emerald-500/40 hover:to-cyan-500/40 border border-emerald-500/50 text-emerald-300 text-[11px] font-bold transition-all hover:scale-105 active:scale-95 flex items-center gap-1 shadow-sm shadow-emerald-500/10"
-                      title="Autofill and immediately initiate 3D vault unlock"
+                      className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500/30 to-cyan-500/30 hover:from-emerald-500/40 hover:to-cyan-500/40 border border-emerald-500/50 text-emerald-300 text-[11px] font-bold transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5 shadow-sm shadow-emerald-500/15"
+                      title="Autofill and automatically open the 3D vault door"
                     >
-                      <Zap className="w-3 h-3 text-emerald-400" />
-                      <span>Quick Unlock</span>
+                      <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Autofill & Open</span>
                     </button>
                   </div>
                 </div>
