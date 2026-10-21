@@ -1,26 +1,14 @@
 {
-  "name": "argus_vault_app",
-  "version": "0.1.0",
+  "name": "argus-vault",
+  "version": "1.0.0",
+  "description": "Zero-Knowledge Interactive 3D Credential Vault & Admin Session Console",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "next": "16.4.2",
-    "react": "19.3.0",
-    "react-dom": "19.3.0"
-  },
-  "devDependencies": {
-    "@tailwindcss/turbopack": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.4.2",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev:backend": "powershell -ExecutionPolicy Bypass -Command \"cd backend; .\\venv\\Scripts\\python.exe manage.py runserver 127.0.0.1:8000\"",
+    "build:frontend": "npm run build --prefix frontend",
+    "test:backend": "powershell -ExecutionPolicy Bypass -Command \"cd backend; .\\venv\\Scripts\\python.exe manage.py test\"",
+    "test:frontend": "npm run test --prefix frontend",
+    "test": "powershell -ExecutionPolicy Bypass -Command \"cd backend; .\\venv\\Scripts\\python.exe manage.py test; cd ..; node frontend/scripts/test-crypto.mjs\""
   }
 }
