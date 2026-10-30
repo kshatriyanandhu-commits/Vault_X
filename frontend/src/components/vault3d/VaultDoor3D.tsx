@@ -68,7 +68,18 @@ export default function VaultDoor3D({
     scene.fog = new THREE.FogExp2(0x06090e, 0.05);
 
     const camera = new THREE.PerspectiveCamera(36, width / height, 0.1, 100);
-    camera.position.set(0, 0, 7.0);
+    // Responsive camera framing for mobile and desktop
+    const updateCameraFraming = (w: number, h: number) => {
+      if (!w || !h) return;
+      const aspect = w / h;
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+      // On narrow mobile screens (aspect < 1.0), move camera back smoothly so entire vault door is visible without clipping
+      const baseZ = 7.0;
+      camera.position.z = aspect < 1.0 ? baseZ + (1.0 - aspect) * 4.5 : baseZ;
+    };
+    updateCameraFraming(width, height);
 
     // Highly optimized WebGL renderer for buttery 60+ FPS
     const renderer = new THREE.WebGLRenderer({
@@ -451,7 +462,8 @@ export default function VaultDoor3D({
 
     // --- Animation Loop State Variables ---
     let animationFrameId: number;
-    let clock = new THREE.Clock();
+    let lastTime = performance.now();
+    let startTime = lastTime;
     let helmSpin = 0;
     let unlockStage = 0; // 0=idle, 1=greenBlink, 2=helmSpin, 3=boltsRetract, 4=doorSwing, 5=openHold, 6=done
     let greenTimer = 0;
@@ -461,8 +473,10 @@ export default function VaultDoor3D({
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
-      const delta = Math.min(clock.getDelta(), 0.05); // Cap delta to prevent large physics jumps
-      const elapsed = clock.getElapsedTime();
+      const now = performance.now();
+      const delta = Math.min((now - lastTime) / 1000, 0.05); // Cap delta to prevent large physics jumps
+      lastTime = now;
+      const elapsed = (now - startTime) / 1000;
       const state = stateRef.current;
 
       // 0. Dust Particles Drift (GPU-only rotation = ZERO CPU overhead!)
@@ -573,27 +587,26 @@ export default function VaultDoor3D({
       }
 
       // -------------------------------------------------------------
-      // STATE: UNLOCKING (CORRECT PASSWORD - CINEMATIC SEQUENCE)
+      // STATE: UNLOCKING (CORRECT PASSWORD - ULTRA-SNAPPY HIGH-SPEED CINEMATIC SEQUENCE)
       // -------------------------------------------------------------
       else if (state.status === 'unlocking' || state.status === 'unlocked') {
-        // Sequence Stage 1: DISTINCT GREEN CONFIRMATION BLINK (1.2 seconds, 3 clear emerald pulses)
+        // Sequence Stage 1: DISTINCT DUAL-EMERALD CONFIRMATION FLASH (0.28s)
         if (unlockStage === 0 || unlockStage === 1) {
           unlockStage = 1;
           greenTimer += delta;
 
-          // Crisp 3-pulse emerald blinking
-          const pulsePhase = Math.sin(greenTimer * 8.0);
-          const isGreenOn = pulsePhase > -0.2;
-          const greenHex = isGreenOn ? 0x00ff88 : 0x00441a;
+          // Crisp rapid emerald blinking
+          const isGreenOn = Math.sin(greenTimer * 28.0) > -0.2;
+          const greenHex = isGreenOn ? 0x00ff88 : 0x003314;
 
           ledMat.color.setHex(greenHex);
           bottomLedMat.color.setHex(greenHex);
           ledLight.color.setHex(0x00ff88);
           bottomLedLight.color.setHex(0x00ff88);
-          ledLight.intensity = isGreenOn ? 6.5 : 0.4;
-          bottomLedLight.intensity = isGreenOn ? 6.5 : 0.4;
+          ledLight.intensity = isGreenOn ? 8.0 : 0.5;
+          bottomLedLight.intensity = isGreenOn ? 8.0 : 0.5;
 
-          if (greenTimer >= 1.2) {
+          if (greenTimer >= 0.28) {
             // Lock green light to steady vibrant emerald
             ledMat.color.setHex(0x10b981);
             bottomLedMat.color.setHex(0x10b981);
@@ -601,23 +614,18 @@ export default function VaultDoor3D({
             bottomLedLight.color.setHex(0x10b981);
             ledLight.intensity = 5.0;
             bottomLedLight.intensity = 5.0;
-            unlockStage = 2; // Proceed to helm spin
+            unlockStage = 2; // Proceed to simultaneous helm spin & bolt retraction
           }
         }
 
-        // Sequence Stage 2: Mechanical Steering Helm Wheel Spins 360° (0.9s)
+        // Sequence Stage 2: Synchronous High-Speed Steering Wheel Spin + Radial Bolt Retraction (0.35s)
         else if (unlockStage === 2) {
-          helmSpin += delta * 7.5;
-          helmGroup.rotation.z = helmSpin;
-          if (helmSpin >= Math.PI * 2) {
-            helmGroup.rotation.z = Math.PI * 2;
-            unlockStage = 3; // Proceed to bolt retraction
-          }
-        }
+          // Rapid pneumatic wheel turn
+          helmSpin += delta * 18.0;
+          helmGroup.rotation.z = Math.min(Math.PI * 2, helmSpin);
 
-        // Sequence Stage 3: Radial Locking Bolts Retract Inward (0.7s)
-        else if (unlockStage === 3) {
-          state.boltsProgress = Math.min(1.0, state.boltsProgress + delta * 2.2);
+          // Radial locking bolts retract in unison
+          state.boltsProgress = Math.min(1.0, state.boltsProgress + delta * 3.4);
           for (let i = 0; i < numBolts; i++) {
             const angle = bolts[i].baseAngle;
             const dist = THREE.MathUtils.lerp(boltBaseDist, boltRetractedDist, state.boltsProgress);
@@ -625,34 +633,35 @@ export default function VaultDoor3D({
             bolts[i].mesh.position.y = Math.sin(angle) * dist;
           }
 
-          if (state.boltsProgress >= 1.0) {
-            unlockStage = 4; // Proceed to door swing
+          if (state.boltsProgress >= 1.0 && helmSpin >= Math.PI * 2) {
+            helmGroup.rotation.z = Math.PI * 2;
+            unlockStage = 3; // Proceed directly to heavy door swing
           }
         }
 
-        // Sequence Stage 4: Heavy Titanium Door Visibly Swings Wide Open! (1.4s)
-        else if (unlockStage === 4) {
-          const targetOpenAngle = -1.48; // ~85 degrees wide open
-          state.doorOpenAngle += (targetOpenAngle - state.doorOpenAngle) * (delta * 2.8);
+        // Sequence Stage 3: Heavy Titanium Door Swings Wide Open (0.50s)
+        else if (unlockStage === 3) {
+          const targetOpenAngle = -1.50; // ~86 degrees wide open
+          state.doorOpenAngle += (targetOpenAngle - state.doorOpenAngle) * (delta * 6.5);
           hingeGroup.rotation.y = state.doorOpenAngle;
 
-          // Glowing chamber interior light floods outward!
-          chamberLight.intensity = Math.min(6.5, chamberLight.intensity + delta * 5.0);
-          coreGridMat.opacity = Math.min(0.85, coreGridMat.opacity + delta * 1.5);
+          // Glowing chamber interior light floods outward swiftly
+          chamberLight.intensity = Math.min(8.0, chamberLight.intensity + delta * 16.0);
+          coreGridMat.opacity = Math.min(0.9, coreGridMat.opacity + delta * 3.5);
 
-          if (Math.abs(state.doorOpenAngle - targetOpenAngle) < 0.05) {
+          if (Math.abs(state.doorOpenAngle - targetOpenAngle) < 0.04) {
             state.doorOpenAngle = targetOpenAngle;
             hingeGroup.rotation.y = targetOpenAngle;
-            unlockStage = 5; // Hold open for user appreciation
+            unlockStage = 4; // Brief hold for visual confirmation
           }
         }
 
-        // Sequence Stage 5: Pause on Fully Open Vault Door, then Smoothly Transition Inside
-        else if (unlockStage === 5) {
+        // Sequence Stage 4: Swift Hold & Instant Transition (0.20s)
+        else if (unlockStage === 4) {
           holdTimer += delta;
-          if (holdTimer >= 0.7 && !isUnlockedFired) {
+          if (holdTimer >= 0.20 && !isUnlockedFired) {
             isUnlockedFired = true;
-            unlockStage = 6;
+            unlockStage = 5;
             if (onUnlockComplete) {
               onUnlockComplete();
             }
@@ -745,19 +754,29 @@ export default function VaultDoor3D({
 
     animate();
 
-    // Resize Handler
+    // Resize Handler for Mobile & Desktop
     const handleResize = () => {
       if (!container) return;
-      const w = container.clientWidth;
-      const h = container.clientHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
+      const w = container.clientWidth || 360;
+      const h = container.clientHeight || 360;
+      updateCameraFraming(w, h);
     };
     window.addEventListener('resize', handleResize);
 
+    // Responsive ResizeObserver for dynamic mobile orientation / split view changes
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        handleResize();
+      });
+      resizeObserver.observe(container);
+    }
+
     return () => {
       window.removeEventListener('resize', handleResize);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       container.removeEventListener('mousemove', handleMouseMove);
       cancelAnimationFrame(animationFrameId);
       renderer.dispose();
@@ -770,7 +789,7 @@ export default function VaultDoor3D({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full h-full min-h-[460px] select-none flex items-center justify-center overflow-hidden ${className}`}
+      className={`relative w-full h-full min-h-[260px] sm:min-h-[380px] lg:min-h-[500px] touch-pan-y select-none flex items-center justify-center overflow-hidden ${className}`}
     />
   );
 }

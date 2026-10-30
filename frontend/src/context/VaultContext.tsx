@@ -229,15 +229,18 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const key = await deriveVaultKey(masterPassword, profile.vault_salt || email);
       setVaultKey(key);
 
-      // Fetch and decrypt vault items
-      const records = await credentialsApi.list();
-      setRawRecords(records);
-      const decrypted = await decryptAllRecords(records, key);
-      setCredentials(decrypted);
-
       lastActivityRef.current = Date.now();
       setSecondsUntilLock(autoLockMinutes * 60);
       logActivity('Authentication Success', `Master vault unlocked for ${profile.email}`);
+
+      // Fetch and decrypt vault items concurrently so door opening animation begins without network lag
+      credentialsApi.list().then(async (records) => {
+        setRawRecords(records);
+        const decrypted = await decryptAllRecords(records, key);
+        setCredentials(decrypted);
+      }).catch((err) => {
+        console.warn('Vault credential background sync:', err);
+      });
     } catch (err: any) {
       setError(err.message || 'Login failed');
       throw err;

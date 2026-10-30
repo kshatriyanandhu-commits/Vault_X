@@ -212,8 +212,8 @@ export default function AdminConsolePage() {
       <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-96 h-96 bg-indigo-500/10 rounded-full blur-[128px] pointer-events-none" />
 
       {/* Top Header */}
-      <header className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-xl px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-lg">
-        <div className="flex items-center gap-3">
+      <header className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-xl px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between sticky top-0 z-30 shadow-lg">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={() => router.push('/vault')}
@@ -224,29 +224,29 @@ export default function AdminConsolePage() {
           </button>
 
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 p-0.5 shadow-md shadow-purple-500/20">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 p-0.5 shadow-md shadow-purple-500/20 shrink-0">
               <div className="w-full h-full bg-slate-950 rounded-[7px] flex items-center justify-center">
                 <Shield className="w-4 h-4 text-purple-400" />
               </div>
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2">
                 <span className="font-bold text-sm tracking-tight text-white">ARGUS</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                  ADMIN AUDIT CONSOLE
+                <span className="text-[9px] sm:text-[10px] font-mono px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                  ADMIN CONSOLE
                 </span>
               </div>
-              <p className="text-[10px] font-mono text-slate-500">Session Telemetry & Access Control</p>
+              <p className="text-[10px] font-mono text-slate-500 hidden xs:block">Session Telemetry & Access Control</p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Auto Refresh Toggle */}
           <button
             type="button"
             onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-mono transition-all ${
+            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg border text-[10px] sm:text-[11px] font-mono transition-all ${
               autoRefresh
                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                 : 'bg-slate-900 border-slate-800 text-slate-500'
@@ -262,20 +262,20 @@ export default function AdminConsolePage() {
             type="button"
             onClick={fetchData}
             disabled={isLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-mono transition-colors"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-mono transition-colors"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Sync</span>
+            <span className="hidden sm:inline">Sync</span>
           </button>
 
-          <div className="text-xs font-mono text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded-full border border-purple-500/20 hidden sm:inline">
+          <div className="text-xs font-mono text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded-full border border-purple-500/20 hidden md:inline">
             Admin: {user?.email}
           </div>
         </div>
       </header>
 
       {/* Main Container */}
-      <div className="flex-1 max-w-7xl w-full mx-auto px-4 py-6 space-y-6">
+      <div className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-5 sm:space-y-6">
         {/* Banner Action Message */}
         {actionMessage && (
           <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono flex items-center gap-2 animate-in fade-in">
@@ -284,57 +284,57 @@ export default function AdminConsolePage() {
           </div>
         )}
 
-        {/* Aggregate Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-4 rounded-2xl vault-panel shadow-lg">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
+        {/* Aggregate Stats Cards (2x2 on mobile, 4 columns on desktop) */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="p-3 sm:p-4 rounded-2xl vault-panel shadow-lg">
+            <div className="flex items-center justify-between text-slate-400 mb-1.5">
               <span className="text-xs font-mono">Total Users</span>
               <Users className="w-4 h-4 text-cyan-400" />
             </div>
-            <div className="text-2xl font-bold font-mono text-slate-100">
+            <div className="text-xl sm:text-2xl font-bold font-mono text-slate-100">
               {stats?.total_users ?? '—'}
             </div>
-            <div className="text-[11px] font-mono text-slate-500 mt-1">
-              {stats?.standard_users ?? 0} standard • {stats?.admin_users ?? 0} admin
+            <div className="text-[10px] sm:text-[11px] font-mono text-slate-500 mt-1">
+              {stats?.standard_users ?? 0} usr • {stats?.admin_users ?? 0} adm
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl vault-panel shadow-lg">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
+          <div className="p-3 sm:p-4 rounded-2xl vault-panel shadow-lg">
+            <div className="flex items-center justify-between text-slate-400 mb-1.5">
               <span className="text-xs font-mono">Active Sessions</span>
               <Activity className="w-4 h-4 text-emerald-400" />
             </div>
-            <div className="text-2xl font-bold font-mono text-emerald-400">
+            <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-400">
               {stats?.active_sessions ?? '—'}
             </div>
-            <div className="text-[11px] font-mono text-slate-500 mt-1">
+            <div className="text-[10px] sm:text-[11px] font-mono text-slate-500 mt-1">
               Live authenticated connections
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl vault-panel shadow-lg">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
+          <div className="p-3 sm:p-4 rounded-2xl vault-panel shadow-lg">
+            <div className="flex items-center justify-between text-slate-400 mb-1.5">
               <span className="text-xs font-mono">Revoked Sessions</span>
               <UserX className="w-4 h-4 text-rose-400" />
             </div>
-            <div className="text-2xl font-bold font-mono text-rose-400">
+            <div className="text-xl sm:text-2xl font-bold font-mono text-rose-400">
               {stats?.revoked_sessions ?? '—'}
             </div>
-            <div className="text-[11px] font-mono text-slate-500 mt-1">
-              Remotely killed access tokens
+            <div className="text-[10px] sm:text-[11px] font-mono text-slate-500 mt-1">
+              Remotely killed tokens
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl vault-panel shadow-lg">
-            <div className="flex items-center justify-between text-slate-400 mb-2">
+          <div className="p-3 sm:p-4 rounded-2xl vault-panel shadow-lg">
+            <div className="flex items-center justify-between text-slate-400 mb-1.5">
               <span className="text-xs font-mono">Encrypted Records</span>
               <Database className="w-4 h-4 text-purple-400" />
             </div>
-            <div className="text-2xl font-bold font-mono text-purple-400">
+            <div className="text-xl sm:text-2xl font-bold font-mono text-purple-400">
               {stats?.total_vault_items ?? '—'}
             </div>
-            <div className="text-[11px] font-mono text-slate-500 mt-1">
-              Zero-knowledge ciphertext blobs
+            <div className="text-[10px] sm:text-[11px] font-mono text-slate-500 mt-1">
+              Zero-knowledge blobs
             </div>
           </div>
         </div>

@@ -263,10 +263,10 @@ export default function VaultPage() {
       <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-96 h-96 bg-emerald-500/10 rounded-full blur-[128px] pointer-events-none" />
 
       {/* Top Application Header */}
-      <header className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-xl px-6 py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-lg">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => router.push('/')}>
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-emerald-500 p-0.5 shadow-md shadow-cyan-500/20">
+      <header className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-xl px-3 sm:px-6 py-3 sm:py-3.5 flex items-center justify-between sticky top-0 z-30 shadow-lg">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-2.5 cursor-pointer" onClick={() => router.push('/')}>
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-emerald-500 p-0.5 shadow-md shadow-cyan-500/20 shrink-0">
               <div className="w-full h-full bg-slate-950 rounded-[7px] flex items-center justify-center">
                 <Shield className="w-4 h-4 text-cyan-400" />
               </div>
@@ -286,7 +286,20 @@ export default function VaultPage() {
         </div>
 
         {/* Header Right Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Mobile Quick Add Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setEditingItem(null);
+              setIsCreateOpen(true);
+            }}
+            className="flex sm:hidden items-center gap-1 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-emerald-500 text-slate-950 font-bold text-xs shadow-md shadow-cyan-500/20"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>New</span>
+          </button>
+
           {/* Audio FX Toggle */}
           <button
             type="button"
@@ -315,10 +328,11 @@ export default function VaultPage() {
             <button
               type="button"
               onClick={() => router.push('/admin')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 text-xs font-mono transition-colors shadow-sm"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 text-xs font-mono transition-colors shadow-sm"
+              title="Admin Session Console"
             >
               <UserCheck className="w-3.5 h-3.5" />
-              <span>Admin Console</span>
+              <span className="hidden sm:inline">Admin</span>
             </button>
           )}
 
@@ -326,7 +340,7 @@ export default function VaultPage() {
           <button
             type="button"
             onClick={lockVault}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 border border-slate-800 hover:border-amber-500/40 text-xs font-mono transition-colors"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 border border-slate-800 hover:border-amber-500/40 text-xs font-mono transition-colors"
             title="Immediately purges master keys from memory"
           >
             <Lock className="w-3.5 h-3.5" />
@@ -349,9 +363,9 @@ export default function VaultPage() {
       </header>
 
       {/* Main Workspace Layout */}
-      <div className="flex-1 max-w-7xl w-full mx-auto px-4 py-6 grid grid-cols-1 md:grid-cols-12 gap-6">
-        {/* Left Sidebar: Categories, Health Score, Activity Feed */}
-        <aside className="md:col-span-4 lg:col-span-3 space-y-5">
+      <div className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 grid grid-cols-1 md:grid-cols-12 gap-5 sm:gap-6">
+        {/* Left Sidebar: Categories, Health Score, Activity Feed (Visible on Desktop / Tablets) */}
+        <aside className="hidden md:block md:col-span-4 lg:col-span-3 space-y-5">
           {/* Primary Action Button */}
           <button
             type="button"
@@ -504,7 +518,63 @@ export default function VaultPage() {
         </aside>
 
         {/* Right Main Panel: Search Bar & Decrypted Item Grid */}
-        <main className="md:col-span-8 lg:col-span-9 space-y-4">
+        <main className="col-span-1 md:col-span-8 lg:col-span-9 space-y-4">
+          {/* Mobile Category Pill Scroller */}
+          <div className="flex md:hidden items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+            {[
+              { id: 'all', label: 'All', icon: Shield, count: credentials.length },
+              { id: 'favorites', label: 'Favs', icon: Star, count: credentials.filter((c) => c.isFavorite).length },
+              { id: 'weak', label: 'Weak', icon: AlertTriangle, count: securityStats.weakCount },
+              { id: 'login', label: 'Logins', icon: KeyRound, count: credentials.filter((c) => c.category === 'login').length },
+              { id: 'card', label: 'Cards', icon: CreditCard, count: credentials.filter((c) => c.category === 'card').length },
+              { id: 'note', label: 'Notes', icon: FileText, count: credentials.filter((c) => c.category === 'note').length },
+              { id: 'server', label: 'Servers', icon: Server, count: credentials.filter((c) => c.category === 'server').length },
+            ].map((cat) => {
+              const Icon = cat.icon;
+              const active = selectedCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat.id as any)}
+                  className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                    active
+                      ? 'bg-slate-800 text-cyan-400 border border-cyan-500/40 font-bold shadow-md shadow-cyan-500/10'
+                      : 'bg-slate-950/80 text-slate-400 border border-slate-800 hover:text-slate-200'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{cat.label}</span>
+                  <span className="text-[10px] opacity-75 font-mono">({cat.count})</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Mobile Quick Action Utilities Bar */}
+          <div className="flex md:hidden items-center justify-between gap-2 p-2 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[11px] font-mono">
+            <button
+              type="button"
+              onClick={() => setIsGeneratorOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-emerald-400 hover:bg-slate-800"
+            >
+              <Wand2 className="w-3.5 h-3.5" />
+              <span>Generator</span>
+            </button>
+            <div className="flex items-center gap-1.5 text-slate-400">
+              <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Health: <strong className={securityStats.score > 80 ? 'text-emerald-400' : 'text-amber-400'}>{securityStats.score}%</strong></span>
+            </div>
+            <button
+              type="button"
+              onClick={handleExportBackup}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-cyan-400 hover:bg-slate-800"
+            >
+              <Download className="w-3 h-3" />
+              <span>Backup</span>
+            </button>
+          </div>
+
           {/* Search Bar & Stats Header */}
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
             <div className="relative flex-1">

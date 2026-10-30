@@ -167,7 +167,7 @@ export default function HomePage() {
       clearError();
 
       soundFX.accessGranted();
-      setTimeout(() => soundFX.mechanicalUnlock(), 1200);
+      setTimeout(() => soundFX.mechanicalUnlock(), 250);
 
       // Trigger the 3D vault door open sequence!
       setVaultStatus('unlocking');
@@ -202,6 +202,24 @@ export default function HomePage() {
     }
   };
 
+  // Handle email changes: triggers auto-verification if password is already typed
+  const handleEmailChange = (val: string) => {
+    setEmail(val);
+    if (autoUnlockTimerRef.current) {
+      clearTimeout(autoUnlockTimerRef.current);
+    }
+    if (
+      masterPassword.length >= 8 &&
+      activeTab === 'login' &&
+      vaultStatus !== 'destroyed' &&
+      vaultStatus !== 'unlocking'
+    ) {
+      autoUnlockTimerRef.current = setTimeout(() => {
+        executeUnlock(val, masterPassword, true);
+      }, 250);
+    }
+  };
+
   // Handle password typing: spins 3D dial and automatically unlocks after entering password
   const handlePasswordChange = (val: string) => {
     setMasterPassword(val);
@@ -216,16 +234,16 @@ export default function HomePage() {
       setVaultStatus('typing');
 
       // AUTOMATIC OPEN AFTER ENTERING PASSWORD:
-      // If user enters 8+ characters in login mode, wait 500ms after last keystroke
-      // and automatically verify and open the vault!
+      // When user enters 8+ characters in login mode, wait 250ms after typing/pasting
+      // and automatically verify and open the vault immediately!
       if (val.length >= 8 && activeTab === 'login') {
         autoUnlockTimerRef.current = setTimeout(() => {
           executeUnlock(email || 'admin@argusvault.local', val, true);
-        }, 500);
+        }, 250);
       } else {
         const timeout = setTimeout(() => {
           setVaultStatus((prev) => (prev === 'typing' ? 'idle' : prev));
-        }, 1200);
+        }, 800);
         return () => clearTimeout(timeout);
       }
     }
@@ -309,7 +327,7 @@ export default function HomePage() {
 
       {/* Top Telemetry Classification Strip */}
       <div
-        className={`w-full border-b px-6 py-1.5 flex items-center justify-between text-[11px] font-mono z-30 transition-colors duration-500 ${
+        className={`w-full border-b px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-[11px] font-mono z-30 transition-colors duration-500 ${
           vaultStatus === 'destroyed'
             ? 'bg-rose-950/95 border-rose-800 text-rose-300'
             : vaultStatus === 'unlocking'
@@ -317,31 +335,31 @@ export default function HomePage() {
             : 'bg-slate-950/90 border-slate-800/80 text-slate-400'
         }`}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           {vaultStatus === 'destroyed' ? (
             <span className="flex items-center gap-1.5 text-rose-400 font-bold">
-              <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-              STATUS: CATASTROPHIC BREACH // LOCKDOWN ENGAGED
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+              STATUS: CATASTROPHIC BREACH // LOCKDOWN
             </span>
           ) : vaultStatus === 'unlocking' ? (
             <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
               AUTHENTICATED // ACCESS GRANTED
             </span>
           ) : (
             <span className="flex items-center gap-1.5 text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
               SYS_ONLINE
             </span>
           )}
-          <span className="text-slate-600">|</span>
-          <span className="text-cyan-400">CIPHER: AES-256-GCM</span>
-          <span className="text-slate-600 hidden sm:inline">|</span>
-          <span className="text-slate-400 hidden sm:inline">ZERO-KNOWLEDGE STORAGE</span>
+          <span className="text-slate-600 hidden xs:inline">|</span>
+          <span className="text-cyan-400 hidden xs:inline">AES-256-GCM</span>
+          <span className="text-slate-600 hidden md:inline">|</span>
+          <span className="text-slate-400 hidden md:inline">ZERO-KNOWLEDGE STORAGE</span>
         </div>
 
         {/* Failed Attempts Counter & Sound Toggle */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 shrink-0">
           <button
             type="button"
             onClick={toggleMute}
@@ -378,25 +396,25 @@ export default function HomePage() {
       </div>
 
       {/* Top Navbar */}
-      <header className="w-full border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-xl px-6 py-4 flex items-center justify-between z-30 shadow-lg">
+      <header className="w-full border-b border-slate-800/80 bg-slate-950/70 backdrop-blur-xl px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between z-30 shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 via-emerald-500 to-cyan-600 p-0.5 shadow-lg shadow-cyan-500/25">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-cyan-500 via-emerald-500 to-cyan-600 p-0.5 shadow-lg shadow-cyan-500/25 shrink-0">
             <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-              <Shield className="w-5 h-5 text-cyan-400" />
+              <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400" />
             </div>
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-extrabold tracking-tight text-xl text-white">ARGUS</span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono tracking-widest bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold">
+              <span className="font-extrabold tracking-tight text-lg sm:text-xl text-white">ARGUS</span>
+              <span className="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono tracking-widest bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold">
                 VAULT
               </span>
             </div>
-            <p className="text-[11px] font-mono text-slate-400">Interactive 3D Steel Vault • Client-Side Zero-Knowledge</p>
+            <p className="text-[10px] sm:text-[11px] font-mono text-slate-400">Interactive 3D Steel Vault • Client Zero-Knowledge</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-xs font-mono text-slate-400">
+        <div className="flex items-center gap-2 sm:gap-4 text-xs font-mono text-slate-400">
           <div className="hidden sm:flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-full border border-slate-800">
             <Cpu className="w-3.5 h-3.5 text-cyan-400" />
             <span>PBKDF2 (100k It.)</span>
@@ -409,12 +427,12 @@ export default function HomePage() {
       </header>
 
       {/* Main Hero & Split Interactive Section */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center z-10">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-8 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-center z-10">
         {/* Left Column: Interactive 3D Vault Door (Clickable to open) */}
-        <div className="lg:col-span-7 flex flex-col items-center justify-center relative min-h-[460px] sm:min-h-[540px]">
+        <div className="lg:col-span-7 flex flex-col items-center justify-center relative min-h-[260px] sm:min-h-[380px] lg:min-h-[520px] w-full">
           {/* Ambient Glow Disk Behind Door */}
           <div
-            className={`absolute w-[380px] h-[380px] sm:w-[480px] sm:h-[480px] blur-2xl pointer-events-none rounded-full transition-all duration-700 ${
+            className={`absolute w-[240px] h-[240px] sm:w-[380px] sm:h-[380px] lg:w-[460px] lg:h-[460px] blur-2xl pointer-events-none rounded-full transition-all duration-700 ${
               vaultStatus === 'destroyed'
                 ? 'bg-rose-950/40 scale-110'
                 : vaultStatus === 'rejecting'
@@ -443,9 +461,9 @@ export default function HomePage() {
           </div>
 
           {/* Status Label Under Vault Door */}
-          <div className="mt-3 text-center">
+          <div className="mt-2 sm:mt-3 text-center px-2">
             <div
-              className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-xs font-mono backdrop-blur-md shadow-lg transition-all ${
+              className={`inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 rounded-full border text-[11px] sm:text-xs font-mono backdrop-blur-md shadow-lg transition-all ${
                 vaultStatus === 'destroyed'
                   ? 'bg-rose-950/90 border-rose-600 text-rose-300 font-bold'
                   : vaultStatus === 'rejecting'
@@ -458,31 +476,31 @@ export default function HomePage() {
               {vaultStatus === 'typing' && (
                 <span className="text-cyan-400 flex items-center gap-1.5 animate-pulse font-semibold">
                   <span className="w-2 h-2 rounded-full bg-cyan-400" />
-                  Combination Dial Rotating • Auto-Opens on Password Completion...
+                  Dial Turning • Unlocks Automatically on Completion...
                 </span>
               )}
               {vaultStatus === 'rejecting' && (
                 <span className="text-rose-400 flex items-center gap-1.5 font-bold">
-                  <AlertTriangle className="w-4 h-4 text-rose-400" />
-                  RED LIGHT BLINKING // ACCESS DENIED // ATTEMPTS: {failedAttempts}/3
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  ACCESS DENIED // FAILED ATTEMPTS: {failedAttempts}/3
                 </span>
               )}
               {vaultStatus === 'unlocking' && (
                 <span className="text-emerald-300 flex items-center gap-1.5 font-bold animate-pulse">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  GREEN LIGHT CONFIRMED • BOLTS RETRACTING • DOOR OPENING...
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  CONFIRMED • OPENING VAULT DOOR...
                 </span>
               )}
               {vaultStatus === 'destroyed' && (
                 <span className="text-rose-300 flex items-center gap-1.5 font-bold">
-                  <ShieldAlert className="w-4 h-4 text-rose-400" />
-                  HARDWARE COMPROMISED • VAULT BREACHED // SYSTEM PURGED
+                  <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+                  HARDWARE BREACHED // LOCKDOWN ENGAGED
                 </span>
               )}
               {vaultStatus === 'idle' && (
                 <span className="flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5 text-cyan-400" />
-                  Machined Steel Door • Enters Automatically on Password Input
+                  <Activity className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  Enter Master Password to Open Vault Automatically
                 </span>
               )}
             </div>
@@ -490,9 +508,9 @@ export default function HomePage() {
         </div>
 
         {/* Right Column: High-Security Terminal Form */}
-        <div className="lg:col-span-5 flex justify-center">
+        <div className="lg:col-span-5 flex justify-center w-full">
           <div
-            className={`w-full max-w-md vault-panel tactical-bracket rounded-2xl p-6 sm:p-8 relative overflow-hidden transition-all duration-500 ${
+            className={`w-full max-w-md vault-panel tactical-bracket rounded-2xl p-4 sm:p-7 md:p-8 relative overflow-hidden transition-all duration-500 ${
               isLockdown
                 ? 'border-rose-600 shadow-[0_0_50px_rgba(244,63,94,0.3)]'
                 : vaultStatus === 'unlocking'
@@ -670,9 +688,10 @@ export default function HomePage() {
                       type="email"
                       required
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => handleEmailChange(e.target.value)}
+                      onInput={(e) => handleEmailChange((e.target as HTMLInputElement).value)}
                       placeholder="admin@argusvault.local"
-                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 text-sm font-sans transition-all"
+                      className="w-full pl-9 pr-3.5 py-2.5 sm:py-2.5 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 text-base sm:text-sm font-sans transition-all min-h-[44px]"
                     />
                   </div>
                 </div>
@@ -694,8 +713,9 @@ export default function HomePage() {
                       required
                       value={masterPassword}
                       onChange={(e) => handlePasswordChange(e.target.value)}
+                      onInput={(e) => handlePasswordChange((e.target as HTMLInputElement).value)}
                       placeholder="••••••••••••••••"
-                      className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 text-sm font-mono tracking-wider transition-all"
+                      className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 text-base sm:text-sm font-mono tracking-wider transition-all min-h-[44px]"
                     />
                     <button
                       type="button"
