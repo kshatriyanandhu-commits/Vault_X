@@ -233,10 +233,46 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setSecondsUntilLock(autoLockMinutes * 60);
       logActivity('Authentication Success', `Master vault unlocked for ${profile.email}`);
 
-      // Fetch and decrypt vault items concurrently so door opening animation begins without network lag
-      credentialsApi.list().then(async (records) => {
-        setRawRecords(records);
-        const decrypted = await decryptAllRecords(records, key);
+      // Fetch and decrypt vault items concurrently with persistent Zero-Knowledge cache sync
+      credentialsApi.list().then(async (serverRecords) => {
+        let activeRecords = serverRecords;
+
+        // Persistent Zero-Knowledge Local Cache Sync across serverless restarts
+        const cacheKey = `argus_encrypted_vault_${profile.email.toLowerCase()}`;
+        if (typeof window !== 'undefined') {
+          if (activeRecords.length === 0) {
+            try {
+              const cachedStr = localStorage.getItem(cacheKey);
+              if (cachedStr) {
+                const cachedRecords = JSON.parse(cachedStr);
+                if (Array.isArray(cachedRecords) && cachedRecords.length > 0) {
+                  activeRecords = cachedRecords;
+                  // Re-sync each item to backend so backend persistence is restored
+                  for (const r of cachedRecords) {
+                    credentialsApi.create({
+                      encrypted_payload: r.encrypted_payload || r.ciphertext,
+                      iv: r.iv,
+                      category: r.category,
+                      title_hint: r.title_hint,
+                      is_favorite: r.is_favorite,
+                    }).catch(console.warn);
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn('Local cache restore error:', e);
+            }
+          } else {
+            try {
+              localStorage.setItem(cacheKey, JSON.stringify(activeRecords));
+            } catch (e) {
+              console.warn('Local cache save error:', e);
+            }
+          }
+        }
+
+        setRawRecords(activeRecords);
+        const decrypted = await decryptAllRecords(activeRecords, key);
         setCredentials(decrypted);
       }).catch((err) => {
         console.warn('Vault credential background sync:', err);
@@ -342,7 +378,15 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     };
 
     setCredentials((prev) => [newItem, ...prev]);
-    setRawRecords((prev) => [createdRecord, ...prev]);
+    setRawRecords((prev) => {
+      const next = [createdRecord, ...prev];
+      if (typeof window !== 'undefined' && user?.email) {
+        try {
+          localStorage.setItem(`argus_encrypted_vault_${user.email.toLowerCase()}`, JSON.stringify(next));
+        } catch (e) {}
+      }
+      return next;
+    });
     logActivity('Credential Created', `Encrypted and stored entry "${payload.title}"`);
   };
 
@@ -379,6 +423,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           : item
       )
     );
+
+    setRawRecords((prev) => {
+      const next = prev.map((r) => (r.id === id ? updatedRecord : r));
+      if (typeof window !== 'undefined' && user?.email) {
+        try {
+          localStorage.setItem(`argus_encrypted_vault_${user.email.toLowerCase()}`, JSON.stringify(next));
+        } catch (e) {}
+      }
+      return next;
+    });
     logActivity('Credential Updated', `Re-encrypted entry "${payload.title}"`);
   };
 
@@ -387,7 +441,15 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const item = credentials.find((c) => c.id === id);
     await credentialsApi.delete(id);
     setCredentials((prev) => prev.filter((c) => c.id !== id));
-    setRawRecords((prev) => prev.filter((r) => r.id !== id));
+    setRawRecords((prev) => {
+      const next = prev.filter((r) => r.id !== id);
+      if (typeof window !== 'undefined' && user?.email) {
+        try {
+          localStorage.setItem(`argus_encrypted_vault_${user.email.toLowerCase()}`, JSON.stringify(next));
+        } catch (e) {}
+      }
+      return next;
+    });
     logActivity('Credential Deleted', `Purged entry "${item?.title || id}" from vault`);
   };
 

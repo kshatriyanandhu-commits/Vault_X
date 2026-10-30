@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ detail: 'Email and password are required.' }, { status: 400 });
     }
 
-    if (serverlessStore.users.has(email)) {
+    if (await serverlessStore.hasUser(email)) {
       return NextResponse.json({ detail: 'A user with that email already exists.' }, { status: 400 });
     }
 
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       passwordHash: password,
       created_at: new Date().toISOString(),
     };
-    serverlessStore.users.set(email, newUser);
+    await serverlessStore.saveUser(newUser);
 
     const sessionId = 'sess_' + Math.random().toString(36).substring(2, 12);
     const newSession: MockSession = {
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       login_time: new Date().toISOString(),
       last_activity: new Date().toISOString(),
     };
-    serverlessStore.sessions.set(sessionId, newSession);
+    await serverlessStore.saveSession(newSession);
 
     const profile = {
       id: newUser.id,

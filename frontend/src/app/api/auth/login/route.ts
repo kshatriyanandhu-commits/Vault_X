@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
     const email = (body.email || '').trim().toLowerCase();
     const password = body.password || '';
 
-    const userRecord = serverlessStore.users.get(email);
+    const userRecord = await serverlessStore.findUser(email);
     if (!userRecord || userRecord.passwordHash !== password) {
       return NextResponse.json(
         { detail: 'Invalid email or master password combination.' },
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       login_time: new Date().toISOString(),
       last_activity: new Date().toISOString(),
     };
-    serverlessStore.sessions.set(sessionId, newSession);
+    await serverlessStore.saveSession(newSession);
 
     const profile = {
       id: userRecord.id,

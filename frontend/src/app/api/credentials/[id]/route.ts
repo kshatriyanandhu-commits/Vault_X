@@ -6,7 +6,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const item = serverlessStore.credentials.get(id);
+  const item = await serverlessStore.findCredential(id);
   if (!item) {
     return NextResponse.json({ detail: 'Not found.' }, { status: 404 });
   }
@@ -18,7 +18,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const item = serverlessStore.credentials.get(id);
+  const item = await serverlessStore.findCredential(id);
   if (!item) {
     return NextResponse.json({ detail: 'Not found.' }, { status: 404 });
   }
@@ -28,14 +28,14 @@ export async function PUT(
     ...item,
     title_hint: body.title_hint ?? item.title_hint,
     category: body.category ?? item.category,
-    ciphertext: body.ciphertext ?? item.ciphertext,
+    ciphertext: body.ciphertext ?? body.encrypted_payload ?? item.ciphertext,
     iv: body.iv ?? item.iv,
     tag: body.tag ?? item.tag,
     updated_at: new Date().toISOString(),
   };
 
-  serverlessStore.credentials.set(id, updated);
-  return NextResponse.json(updated);
+  const saved = await serverlessStore.saveCredential(updated);
+  return NextResponse.json(saved);
 }
 
 export async function DELETE(
@@ -43,6 +43,6 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  serverlessStore.credentials.delete(id);
+  await serverlessStore.removeCredential(id);
   return new NextResponse(null, { status: 204 });
 }

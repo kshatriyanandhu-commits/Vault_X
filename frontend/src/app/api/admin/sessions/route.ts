@@ -3,23 +3,9 @@ import { serverlessStore } from '@/lib/serverlessStore';
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  const statusFilter = url.searchParams.get('status');
-  const search = url.searchParams.get('search');
+  const statusFilter = url.searchParams.get('status') || undefined;
+  const search = url.searchParams.get('search') || undefined;
 
-  let list = Array.from(serverlessStore.sessions.values());
-
-  if (statusFilter && statusFilter !== 'all') {
-    list = list.filter((s) => s.status === statusFilter);
-  }
-
-  if (search) {
-    const q = search.toLowerCase();
-    list = list.filter(
-      (s) =>
-        s.user_email.toLowerCase().includes(q) ||
-        s.ip_address.toLowerCase().includes(q)
-    );
-  }
-
+  const list = await serverlessStore.listSessions(statusFilter, search);
   return NextResponse.json(list);
 }
