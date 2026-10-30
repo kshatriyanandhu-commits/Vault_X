@@ -68,18 +68,6 @@ export default function VaultDoor3D({
     scene.fog = new THREE.FogExp2(0x06090e, 0.05);
 
     const camera = new THREE.PerspectiveCamera(36, width / height, 0.1, 100);
-    // Responsive camera framing for mobile and desktop
-    const updateCameraFraming = (w: number, h: number) => {
-      if (!w || !h) return;
-      const aspect = w / h;
-      camera.aspect = aspect;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-      // On narrow mobile screens (aspect < 1.0), move camera back smoothly so entire vault door is visible without clipping
-      const baseZ = 7.0;
-      camera.position.z = aspect < 1.0 ? baseZ + (1.0 - aspect) * 4.5 : baseZ;
-    };
-    updateCameraFraming(width, height);
 
     // Highly optimized WebGL renderer for buttery 60+ FPS
     const renderer = new THREE.WebGLRenderer({
@@ -92,6 +80,19 @@ export default function VaultDoor3D({
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.2;
     container.appendChild(renderer.domElement);
+
+    // Responsive camera framing for mobile and desktop
+    const updateCameraFraming = (w: number, h: number) => {
+      if (!w || !h) return;
+      const aspect = w / h;
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+      // On narrow mobile screens (aspect < 1.0), move camera back smoothly so entire vault door is visible without clipping
+      const baseZ = 7.0;
+      camera.position.z = aspect < 1.0 ? baseZ + (1.0 - aspect) * 4.5 : baseZ;
+    };
+    updateCameraFraming(width, height);
 
     // --- Realistic Industrial Metal Materials ---
     const steelDark = new THREE.MeshStandardMaterial({

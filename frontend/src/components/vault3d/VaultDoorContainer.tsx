@@ -1,9 +1,40 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component, ReactNode } from 'react';
 import VaultDoor3D, { VaultDoor3DProps } from './VaultDoor3D';
 import VaultDoorFallback from './VaultDoorFallback';
-import { Eye, Box, Sliders } from 'lucide-react';
+import { Box, Sliders } from 'lucide-react';
+
+interface ErrorBoundaryProps {
+  children: ReactNode;
+  fallback: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+class Vault3DErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, info: any) {
+    console.warn('3D Vault WebGL render issue detected, falling back to 2D schematic:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
 
 export default function VaultDoorContainer(props: VaultDoor3DProps) {
   const [hasWebGL, setHasWebGL] = useState(true);
@@ -25,9 +56,11 @@ export default function VaultDoorContainer(props: VaultDoor3DProps) {
 
   return (
     <div className="relative w-full h-full flex flex-col items-center justify-center">
-      {/* Renderer View */}
+      {/* Renderer View wrapped with ErrorBoundary for bulletproof stability */}
       {hasWebGL && use3D ? (
-        <VaultDoor3D {...props} />
+        <Vault3DErrorBoundary fallback={<VaultDoorFallback {...props} />}>
+          <VaultDoor3D {...props} />
+        </Vault3DErrorBoundary>
       ) : (
         <VaultDoorFallback {...props} />
       )}
